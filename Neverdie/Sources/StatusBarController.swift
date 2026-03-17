@@ -13,6 +13,7 @@ final class StatusBarController {
     private var statusItem: NSStatusItem
     private let appState: AppState
     private let logger = Logger.ui
+    private var popoverManager: PopoverManager?
 
     // MARK: - Icon Images
 
@@ -45,6 +46,7 @@ final class StatusBarController {
 
         setupButton()
         updateIcon()
+        setupPopover()
         logger.info("StatusBarController initialized")
     }
 
@@ -59,6 +61,11 @@ final class StatusBarController {
 
         // Accessibility
         updateAccessibility()
+    }
+
+    private func setupPopover() {
+        guard let button = statusItem.button else { return }
+        popoverManager = PopoverManager(appState: appState, statusButton: button)
     }
 
     /// Build the right-click context menu.
@@ -85,6 +92,9 @@ final class StatusBarController {
 
     @objc private func handleClick(_ sender: NSStatusBarButton) {
         let event = NSApp.currentEvent
+
+        // Dismiss popover on any click
+        popoverManager?.dismissPopover()
 
         if event?.type == .rightMouseUp {
             // Right-click: show context menu
