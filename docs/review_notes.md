@@ -1,23 +1,25 @@
-# Review Notes: ISSUE-011 -- ProcessMonitor
+# Review Notes: ISSUE-014 -- TokenMonitor
 
 ## Code Review
 
 ### Findings
-- **Clean**: Uses libproc APIs (proc_listallpids, proc_name) directly without spawning subprocesses
-- **Clean**: Weak self capture in timer closure prevents retain cycles
-- **Clean**: deinit calls stopPolling for cleanup
-- **Clean**: Timer tolerance set at 10% for energy efficiency
-- **Low**: MAXCOMLEN buffer size is correct for proc_name
-- **Clean**: Case-insensitive matching with both prefix and contains check
+- **Clean**: Graceful degradation at every level (missing dir, malformed JSON, missing fields)
+- **Clean**: Injectable FileManager and base path for testability
+- **Clean**: JSONDecoder with optional fields (context/input/output all optional with default 0)
+- **Clean**: Aggregate readUsage() delegates to readPerSessionUsage() -- single source of truth
+- **Low**: Claude Code file format may change -- designed for flexibility with lenient parsing
+- **Clean**: No polling timer, reads on-demand only
 
 ### Changes Made
 None required.
 
 ### Follow-ups
-- ISSUE-012 will wire ProcessMonitor to AppState for auto-OFF
+- ISSUE-015 will add token usage bar graphs to the popover
+- ISSUE-023 will add per-session breakdown UI
 
 ## Security Findings
 
 ### Severity: None
-- proc_listallpids/proc_name are read-only APIs, no privilege escalation
-- No network calls, no file writes
+- Read-only file system access to ~/.claude/ directory
+- No network calls, no user input handling
+- FileManager permissions respected (graceful failure on denied access)
