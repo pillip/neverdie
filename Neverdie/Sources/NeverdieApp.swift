@@ -1,21 +1,44 @@
 import SwiftUI
+import AppKit
 import os
+
+/// Application delegate for handling lifecycle events.
+///
+/// Creates and owns the AppState, SleepManager, and StatusBarController.
+/// Manages the NSStatusItem directly for left-click toggle support.
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    private var appState: AppState!
+    private var sleepManager: SleepManager!
+    private var statusBarController: StatusBarController!
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        sleepManager = SleepManager()
+        appState = AppState(sleepManager: sleepManager)
+        statusBarController = StatusBarController(appState: appState)
+        Logger.lifecycle.info("Neverdie app launched")
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        appState?.cleanup()
+        Logger.lifecycle.info("Neverdie app terminating")
+    }
+}
 
 /// Main entry point for the Neverdie menu bar app.
 ///
 /// Neverdie prevents macOS system sleep while Claude Code is running.
 /// It lives in the menu bar only (no Dock icon via LSUIElement=true).
 ///
-/// The menu bar icon shows a sleeping zombie when OFF.
-/// Falls back to "ND" text if the zombie asset is missing.
+/// Uses NSApplicationDelegateAdaptor to wire AppDelegate for lifecycle
+/// management and NSStatusItem-based menu bar control.
 @main
 struct NeverdieApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+
     var body: some Scene {
-        MenuBarExtra {
-            Text("Neverdie")
-                .padding()
-        } label: {
-            MenuBarIconView()
+        // Use Settings scene as a no-op since we manage the menu bar via NSStatusItem
+        Settings {
+            EmptyView()
         }
     }
 }
@@ -24,6 +47,7 @@ struct NeverdieApp: App {
 ///
 /// Shows the sleeping zombie icon from the asset catalog,
 /// with fallback to "ND" text if the asset is not available.
+/// Kept for potential reuse in SwiftUI contexts.
 struct MenuBarIconView: View {
     var body: some View {
         if let zombieImage = NSImage(named: "ZombieSleep") {
