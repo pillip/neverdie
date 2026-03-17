@@ -1,4 +1,5 @@
 import AppKit
+import ServiceManagement
 import SwiftUI
 import os
 
@@ -80,6 +81,18 @@ final class StatusBarController {
 
         menu.addItem(NSMenuItem.separator())
 
+        // Launch at Login toggle
+        let loginItem = NSMenuItem(
+            title: "Launch at Login",
+            action: #selector(handleLaunchAtLogin(_:)),
+            keyEquivalent: ""
+        )
+        loginItem.target = self
+        loginItem.state = isLaunchAtLoginEnabled ? .on : .off
+        menu.addItem(loginItem)
+
+        menu.addItem(NSMenuItem.separator())
+
         // Quit item
         let quitItem = NSMenuItem(title: "Quit Neverdie", action: #selector(handleQuit(_:)), keyEquivalent: "q")
         quitItem.target = self
@@ -118,6 +131,34 @@ final class StatusBarController {
         logger.info("Quit selected from menu")
         appState.cleanup()
         NSApplication.shared.terminate(nil)
+    }
+
+    @objc private func handleLaunchAtLogin(_ sender: NSMenuItem) {
+        let service = SMAppService.mainApp
+        do {
+            if isLaunchAtLoginEnabled {
+                try service.unregister()
+                logger.info("Launch at Login disabled")
+            } else {
+                try service.register()
+                logger.info("Launch at Login enabled")
+            }
+        } catch {
+            logger.error("Launch at Login toggle failed: \(error.localizedDescription)")
+            let alert = NSAlert()
+            alert.messageText = "Could not enable Launch at Login"
+            alert.informativeText = error.localizedDescription
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+        }
+    }
+
+    // MARK: - Launch at Login
+
+    /// Query current SMAppService registration status.
+    var isLaunchAtLoginEnabled: Bool {
+        SMAppService.mainApp.status == .enabled
     }
 
     // MARK: - Icon Management
