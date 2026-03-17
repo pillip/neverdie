@@ -1,28 +1,24 @@
-# UI Review Notes -- ISSUE-006 Dropdown Menu
+# UI Review Notes -- ISSUE-008 Animated Frame Assets
 
 ## State Coverage
-- **ON state**: Menu shows "Neverdie: ON" -- correct
-- **OFF state**: Menu shows "Neverdie: OFF" -- correct
-- **Error state**: Not applicable (ISSUE-017 scope)
-- **Empty state**: N/A -- menu always has content
-- **Loading state**: N/A -- menu builds synchronously
+- **Loop frames**: 4 frames (ZombieOn_01-04) for ON state animation
+- **Wake-up transition**: 2 frames for OFF->ON
+- **Fall-asleep transition**: 3 frames for ON->OFF
+- **Auto-OFF transition**: 4 frames for auto-deactivation
+- All states have corresponding visual assets
 
 ## Copy Compliance
-- "Neverdie: ON/OFF" status line matches UX spec
-- "Quit Neverdie" label is clear and standard macOS convention
-- Keyboard shortcut "q" (Cmd+Q) follows macOS conventions
+- N/A (no text in icon frames)
 
 ## Accessibility
-- Menu items use native NSMenu which is fully accessible by default
-- Status item is disabled (isEnabled=false) so VoiceOver correctly identifies it as informational
-- Quit item has proper target-action wiring
+- Template rendering ensures automatic light/dark mode adaptation
+- Animation frames will be used by AnimationManager (ISSUE-009) which respects reduced motion
 
 ## Interaction Fidelity
-- Left-click: toggles mode (no regression from ISSUE-005)
-- Right-click: shows context menu with status and Quit
-- Menu cleared after display to restore left-click behavior
-- No popover interaction (not in scope)
+- Frame sizes correct: 18x18pt @1x, 36x36pt @2x
+- Template rendering intent set on all imagesets
+- Asset naming follows consistent pattern for programmatic loading
 
 ## Findings
-- **Severity: Low** -- The `statusItem.button?.performClick(nil)` approach for showing menu is a known AppKit pattern but can occasionally cause visual glitch if the menu dismisses too quickly. Acceptable for MVP.
-- No Critical or High severity findings.
+- No Critical or High severity findings
+- **Low**: Programmatic pixel art is placeholder quality -- design refinement expected later

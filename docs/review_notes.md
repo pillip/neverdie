@@ -1,25 +1,20 @@
-# Review Notes: ISSUE-014 -- TokenMonitor
+# Review Notes: ISSUE-008 -- Animated Frame Assets
 
 ## Code Review
 
 ### Findings
-- **Clean**: Graceful degradation at every level (missing dir, malformed JSON, missing fields)
-- **Clean**: Injectable FileManager and base path for testability
-- **Clean**: JSONDecoder with optional fields (context/input/output all optional with default 0)
-- **Clean**: Aggregate readUsage() delegates to readPerSessionUsage() -- single source of truth
-- **Low**: Claude Code file format may change -- designed for flexibility with lenient parsing
-- **Clean**: No polling timer, reads on-demand only
+- **Clean**: 13 imagesets with consistent naming pattern
+- **Clean**: All frames have template rendering intent for light/dark mode
+- **Clean**: Correct dimensions (18x18 @1x, 36x36 @2x)
+- **Low**: Programmatic PNG generation produces minimal placeholder art -- design iteration expected
 
 ### Changes Made
 None required.
 
 ### Follow-ups
-- ISSUE-015 will add token usage bar graphs to the popover
-- ISSUE-023 will add per-session breakdown UI
+- ISSUE-009 will implement AnimationManager to cycle these frames
 
 ## Security Findings
 
 ### Severity: None
-- Read-only file system access to ~/.claude/ directory
-- No network calls, no user input handling
-- FileManager permissions respected (graceful failure on denied access)
+- Static image assets only, no dynamic content
