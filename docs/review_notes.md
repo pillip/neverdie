@@ -1,22 +1,29 @@
-# Review Notes: ISSUE-004 -- Static Zombie Icon
+# Review Notes: ISSUE-006 -- Dropdown Menu
 
 ## Code Review
 
 ### Findings
-- **Clean**: Asset catalog with template rendering for automatic light/dark mode.
-- **Clean**: MenuBarIconView with proper fallback to "ND" text.
-- **Clean**: Accessibility labels on both icon and fallback views.
-- **Low**: Programmatic PNG generation is minimal -- placeholder art for MVP. Design iteration expected.
-- **Clean**: Updated test_scaffold.py to remove bolt.fill check (intentionally replaced).
+- **Clean**: Right-click/left-click separation via NSApp.currentEvent type check is correct
+- **Clean**: Menu cleared after display (statusItem.menu = nil) prevents left-click regression
+- **Clean**: buildMenu() is self-contained and easily extensible for ISSUE-016
+- **Clean**: Quit handler calls cleanup before terminate in correct order
+- **Low**: performClick(nil) approach for showing menu is a known AppKit pattern, acceptable for MVP
 
 ### Changes Made
 None required.
 
 ### Follow-ups
-- Icon design can be refined with proper design tools later.
+- ISSUE-016 will add "Launch at Login" toggle to buildMenu()
+- ISSUE-017 will add error state display to the menu status line
 
 ## Security Findings
 
 ### Severity: None
-- Static image assets, no dynamic content loading.
-- No user input handling.
+- No network calls, no user input, no secrets
+- Pure UI menu construction with NSMenu
+
+## UI Review
+- State coverage: ON/OFF states correctly reflected in menu status line
+- Copy: "Neverdie: ON/OFF" and "Quit Neverdie" follow macOS conventions
+- Accessibility: Native NSMenu is fully VoiceOver-accessible
+- Keyboard shortcut: Cmd+Q for Quit follows platform convention

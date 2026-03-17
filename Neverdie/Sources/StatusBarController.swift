@@ -55,20 +55,59 @@ final class StatusBarController {
 
         button.target = self
         button.action = #selector(handleClick(_:))
-        button.sendAction(on: [.leftMouseUp])
+        button.sendAction(on: [.leftMouseUp, .rightMouseUp])
 
         // Accessibility
         updateAccessibility()
     }
 
+    /// Build the right-click context menu.
+    private func buildMenu() -> NSMenu {
+        let menu = NSMenu()
+
+        // Status line (disabled, informational)
+        let state = appState.isActive ? "ON" : "OFF"
+        let statusItem = NSMenuItem(title: "Neverdie: \(state)", action: nil, keyEquivalent: "")
+        statusItem.isEnabled = false
+        menu.addItem(statusItem)
+
+        menu.addItem(NSMenuItem.separator())
+
+        // Quit item
+        let quitItem = NSMenuItem(title: "Quit Neverdie", action: #selector(handleQuit(_:)), keyEquivalent: "q")
+        quitItem.target = self
+        menu.addItem(quitItem)
+
+        return menu
+    }
+
     // MARK: - Click Handling
 
     @objc private func handleClick(_ sender: NSStatusBarButton) {
-        appState.toggle()
-        updateIcon()
-        updateAccessibility()
-        announceStateChange()
-        logger.info("Toggle triggered via left-click, isActive=\(self.appState.isActive)")
+        let event = NSApp.currentEvent
+
+        if event?.type == .rightMouseUp {
+            // Right-click: show context menu
+            let menu = buildMenu()
+            statusItem.menu = menu
+            statusItem.button?.performClick(nil)
+            // Clear the menu so left-click works again
+            statusItem.menu = nil
+            logger.debug("Right-click menu shown")
+        } else {
+            // Left-click: toggle
+            appState.toggle()
+            updateIcon()
+            updateAccessibility()
+            announceStateChange()
+            logger.info("Toggle triggered via left-click, isActive=\(self.appState.isActive)")
+        }
+    }
+
+    @objc private func handleQuit(_ sender: NSMenuItem) {
+        logger.info("Quit selected from menu")
+        appState.cleanup()
+        NSApplication.shared.terminate(nil)
     }
 
     // MARK: - Icon Management
