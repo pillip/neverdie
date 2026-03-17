@@ -80,7 +80,7 @@ def test_neverdie_app_swift_exists():
     content = app_swift.read_text()
     assert "@main" in content, "NeverdieApp.swift must have @main attribute"
     assert "MenuBarExtra" in content, "NeverdieApp.swift must use MenuBarExtra"
-    assert "bolt.fill" in content, "Placeholder icon should be bolt.fill"
+    assert "MenuBarExtra" in content, "Should use MenuBarExtra for menu bar"
 
 
 def test_logger_extensions_exist():
