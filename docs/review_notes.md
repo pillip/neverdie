@@ -1,24 +1,22 @@
-# Review Notes: ISSUE-003 -- SleepManager
+# Review Notes: ISSUE-004 -- Static Zombie Icon
 
 ## Code Review
 
 ### Findings
-- **Clean**: Correctly uses kIOPMAssertionTypePreventUserIdleSystemSleep (not display sleep).
-- **Clean**: Guard in allowSleep() prevents double-release crash.
-- **Clean**: deinit releases held assertion -- prevents leaked assertions.
-- **Clean**: Configurable assertion name for testability and pmset visibility.
-- **Clean**: Proper IOReturn error code checking.
-- **Clean**: Conforms to SleepManaging protocol for DI.
+- **Clean**: Asset catalog with template rendering for automatic light/dark mode.
+- **Clean**: MenuBarIconView with proper fallback to "ND" text.
+- **Clean**: Accessibility labels on both icon and fallback views.
+- **Low**: Programmatic PNG generation is minimal -- placeholder art for MVP. Design iteration expected.
+- **Clean**: Updated test_scaffold.py to remove bolt.fill check (intentionally replaced).
 
 ### Changes Made
 None required.
 
 ### Follow-ups
-- Signal handling (SIGTERM/SIGINT) deferred to ISSUE-007.
+- Icon design can be refined with proper design tools later.
 
 ## Security Findings
 
 ### Severity: None
-- IOKit API usage is standard and well-documented.
-- No elevated privileges required (IOPMAssertion available to all apps).
-- Assertion auto-released by IOKit on process termination (defense in depth).
+- Static image assets, no dynamic content loading.
+- No user input handling.

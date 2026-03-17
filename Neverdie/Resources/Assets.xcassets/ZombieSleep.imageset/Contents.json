@@ -1,0 +1,22 @@
+{
+  "images": [
+    {
+      "filename": "zombie_sleep_1x.png",
+      "idiom": "mac",
+      "scale": "1x"
+    },
+    {
+      "filename": "zombie_sleep_2x.png",
+      "idiom": "mac",
+      "scale": "2x"
+    }
+  ],
+  "info": {
+    "author": "xcode",
+    "version": 1
+  },
+  "properties": {
+    "preserves-vector-representation": false,
+    "template-rendering-intent": "template"
+  }
+}
