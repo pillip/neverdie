@@ -1,20 +1,21 @@
-# Review Notes: ISSUE-008 -- Animated Frame Assets
+# Review Notes: ISSUE-012 -- Auto-OFF Wiring
 
 ## Code Review
 
 ### Findings
-- **Clean**: 13 imagesets with consistent naming pattern
-- **Clean**: All frames have template rendering intent for light/dark mode
-- **Clean**: Correct dimensions (18x18 @1x, 36x36 @2x)
-- **Low**: Programmatic PNG generation produces minimal placeholder art -- design iteration expected
+- **Clean**: ProcessMonitor properly injected into AppState via AppDelegate
+- **Clean**: Auto-OFF state machine logic already in AppState (from ISSUE-002) -- this issue wires the real ProcessMonitor
+- **Clean**: Weak self in polling callback prevents retain cycles
+- **Clean**: Deactivation resets all tracking state
 
 ### Changes Made
 None required.
 
 ### Follow-ups
-- ISSUE-009 will implement AnimationManager to cycle these frames
+- Phase 3 (Intelligence) is now complete
 
 ## Security Findings
 
 ### Severity: None
-- Static image assets only, no dynamic content
+- Process enumeration is read-only
+- No privilege escalation or network calls
