@@ -18,6 +18,8 @@
 		A10009 /* SignalHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000B /* SignalHandler.swift */; };
 		A1000B /* ProcessMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000C /* ProcessMonitor.swift */; };
 		A1000C /* TokenMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000D /* TokenMonitor.swift */; };
+		A1000D /* PopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000E /* PopoverView.swift */; };
+		A1000E /* PopoverManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000F /* PopoverManager.swift */; };
 		A10010 /* NeverdieTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20010 /* NeverdieTests.swift */; };
 /* End PBXBuildFile section */
 
@@ -46,6 +48,8 @@
 		A2000B /* SignalHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignalHandler.swift; sourceTree = "<group>"; };
 		A2000C /* ProcessMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessMonitor.swift; sourceTree = "<group>"; };
 		A2000D /* TokenMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenMonitor.swift; sourceTree = "<group>"; };
+		A2000E /* PopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverView.swift; sourceTree = "<group>"; };
+		A2000F /* PopoverManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverManager.swift; sourceTree = "<group>"; };
 		A20011 /* NeverdieTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = NeverdieTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -90,6 +94,8 @@
 				A2000B /* SignalHandler.swift */,
 				A2000C /* ProcessMonitor.swift */,
 				A2000D /* TokenMonitor.swift */,
+				A2000E /* PopoverView.swift */,
+				A2000F /* PopoverManager.swift */,
 			);
 			path = Sources;
 			sourceTree = "<group>";
@@ -221,6 +227,8 @@
 				A10009 /* SignalHandler.swift in Sources */,
 				A1000B /* ProcessMonitor.swift in Sources */,
 				A1000C /* TokenMonitor.swift in Sources */,
+				A1000D /* PopoverView.swift in Sources */,
+				A1000E /* PopoverManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
