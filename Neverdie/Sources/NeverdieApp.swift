@@ -13,6 +13,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusBarController: StatusBarController!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Single-instance guard: quit if another instance is already running
+        let runningInstances = NSRunningApplication.runningApplications(
+            withBundleIdentifier: Bundle.main.bundleIdentifier ?? "com.neverdie.app"
+        )
+        if runningInstances.count > 1 {
+            Logger.lifecycle.warning("Another instance of Neverdie is already running -- quitting")
+            NSApplication.shared.terminate(nil)
+            return
+        }
+
         sleepManager = SleepManager()
         processMonitor = ProcessMonitor()
         appState = AppState(sleepManager: sleepManager, processMonitor: processMonitor)
