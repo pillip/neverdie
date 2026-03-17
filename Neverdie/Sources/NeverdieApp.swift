@@ -9,11 +9,13 @@ import os
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var appState: AppState!
     private var sleepManager: SleepManager!
+    private var processMonitor: ProcessMonitor!
     private var statusBarController: StatusBarController!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         sleepManager = SleepManager()
-        appState = AppState(sleepManager: sleepManager)
+        processMonitor = ProcessMonitor()
+        appState = AppState(sleepManager: sleepManager, processMonitor: processMonitor)
         statusBarController = StatusBarController(appState: appState)
 
         // Register signal handlers for clean shutdown on SIGTERM/SIGINT
