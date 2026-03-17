@@ -15,10 +15,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         sleepManager = SleepManager()
         appState = AppState(sleepManager: sleepManager)
         statusBarController = StatusBarController(appState: appState)
+
+        // Register signal handlers for clean shutdown on SIGTERM/SIGINT
+        SignalHandler.register { [weak self] in
+            self?.appState?.cleanup()
+        }
+
         Logger.lifecycle.info("Neverdie app launched")
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        SignalHandler.unregister()
         appState?.cleanup()
         Logger.lifecycle.info("Neverdie app terminating")
     }
