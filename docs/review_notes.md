@@ -1,25 +1,24 @@
-# Review Notes: ISSUE-002 -- AppState ViewModel
+# Review Notes: ISSUE-003 -- SleepManager
 
 ## Code Review
 
 ### Findings
-- **Clean**: @Observable macro used correctly for SwiftUI state management.
-- **Clean**: Protocols well-defined with clear separation of concerns.
-- **Clean**: Debounce uses Date comparison (simple, correct for 300ms threshold).
-- **Clean**: Auto-OFF state machine guards against false triggers with claudeProcessesEverDetected.
-- **Clean**: DI via init parameters enables full testability.
-- **Low**: TokenMonitoring.readPerSessionUsage() returns array -- could be empty array vs nil. Acceptable as-is.
-- **Clean**: cleanup() is idempotent.
+- **Clean**: Correctly uses kIOPMAssertionTypePreventUserIdleSystemSleep (not display sleep).
+- **Clean**: Guard in allowSleep() prevents double-release crash.
+- **Clean**: deinit releases held assertion -- prevents leaked assertions.
+- **Clean**: Configurable assertion name for testability and pmset visibility.
+- **Clean**: Proper IOReturn error code checking.
+- **Clean**: Conforms to SleepManaging protocol for DI.
 
 ### Changes Made
 None required.
 
 ### Follow-ups
-- None
+- Signal handling (SIGTERM/SIGINT) deferred to ISSUE-007.
 
 ## Security Findings
 
 ### Severity: None
-- No external input handling, no network calls.
-- Protocol-based DI prevents tight coupling to system APIs.
-- No hardcoded secrets or credentials.
+- IOKit API usage is standard and well-documented.
+- No elevated privileges required (IOPMAssertion available to all apps).
+- Assertion auto-released by IOKit on process termination (defense in depth).
