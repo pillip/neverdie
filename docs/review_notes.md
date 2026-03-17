@@ -1,29 +1,23 @@
-# Review Notes: ISSUE-006 -- Dropdown Menu
+# Review Notes: ISSUE-011 -- ProcessMonitor
 
 ## Code Review
 
 ### Findings
-- **Clean**: Right-click/left-click separation via NSApp.currentEvent type check is correct
-- **Clean**: Menu cleared after display (statusItem.menu = nil) prevents left-click regression
-- **Clean**: buildMenu() is self-contained and easily extensible for ISSUE-016
-- **Clean**: Quit handler calls cleanup before terminate in correct order
-- **Low**: performClick(nil) approach for showing menu is a known AppKit pattern, acceptable for MVP
+- **Clean**: Uses libproc APIs (proc_listallpids, proc_name) directly without spawning subprocesses
+- **Clean**: Weak self capture in timer closure prevents retain cycles
+- **Clean**: deinit calls stopPolling for cleanup
+- **Clean**: Timer tolerance set at 10% for energy efficiency
+- **Low**: MAXCOMLEN buffer size is correct for proc_name
+- **Clean**: Case-insensitive matching with both prefix and contains check
 
 ### Changes Made
 None required.
 
 ### Follow-ups
-- ISSUE-016 will add "Launch at Login" toggle to buildMenu()
-- ISSUE-017 will add error state display to the menu status line
+- ISSUE-012 will wire ProcessMonitor to AppState for auto-OFF
 
 ## Security Findings
 
 ### Severity: None
-- No network calls, no user input, no secrets
-- Pure UI menu construction with NSMenu
-
-## UI Review
-- State coverage: ON/OFF states correctly reflected in menu status line
-- Copy: "Neverdie: ON/OFF" and "Quit Neverdie" follow macOS conventions
-- Accessibility: Native NSMenu is fully VoiceOver-accessible
-- Keyboard shortcut: Cmd+Q for Quit follows platform convention
+- proc_listallpids/proc_name are read-only APIs, no privilege escalation
+- No network calls, no file writes
