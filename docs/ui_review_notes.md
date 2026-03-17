@@ -1,24 +1,24 @@
-# UI Review Notes -- ISSUE-008 Animated Frame Assets
+# UI Review Notes -- ISSUE-013 Hover Popover
 
 ## State Coverage
-- **Loop frames**: 4 frames (ZombieOn_01-04) for ON state animation
-- **Wake-up transition**: 2 frames for OFF->ON
-- **Fall-asleep transition**: 3 frames for ON->OFF
-- **Auto-OFF transition**: 4 frames for auto-deactivation
-- All states have corresponding visual assets
+- **0 processes**: "No active sessions"
+- **1 process**: "1 active session" (singular)
+- **N processes**: "N active sessions" (plural)
+- **Token data placeholder**: "Token data will appear here" (ISSUE-015 scope)
 
 ## Copy Compliance
-- N/A (no text in icon frames)
+- Session count text follows natural English grammar (singular/plural)
+- Placeholder text for token data is informational
 
 ## Accessibility
-- Template rendering ensures automatic light/dark mode adaptation
-- Animation frames will be used by AnimationManager (ISSUE-009) which respects reduced motion
+- accessibilityLabel set on session text
+- NSPopover content is VoiceOver-navigable
 
 ## Interaction Fidelity
-- Frame sizes correct: 18x18pt @1x, 36x36pt @2x
-- Template rendering intent set on all imagesets
-- Asset naming follows consistent pattern for programmatic loading
+- 200ms hover delay prevents accidental popover on mouse pass-through
+- 100ms grace period prevents flicker on mouse jitter
+- Popover dismissed on click (both left and right)
+- Transient behavior auto-dismisses on click outside
 
 ## Findings
 - No Critical or High severity findings
-- **Low**: Programmatic pixel art is placeholder quality -- design refinement expected later
