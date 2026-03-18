@@ -4,47 +4,54 @@
 
 ## Current Milestone
 
-**Kickoff 완료** -- 모든 planning 문서 생성 완료, 구현 대기 중.
+**All Issues Complete** -- All 23 issues across all 6 phases have been shipped. The project is feature-complete and ready for its first tagged release.
 
 ## Issue Summary
 
-| 항목 | 수 |
-|------|-----|
-| 총 이슈 | 23 |
-| P0 (Must) | 7 (ISSUE-001 ~ 007) |
-| P1 (Should) | 12 (ISSUE-008 ~ 019) |
-| P2 (Could) | 4 (ISSUE-020 ~ 023) |
-| 총 예상 공수 | 18.5d |
+| Category | Count |
+|----------|-------|
+| Total issues | 23 |
+| Shipped | 23 (all issues) |
+| Remaining | 0 |
 
-### Phase별 진행
+### Phase Progress
 
-| Phase | Issues | 예상 | 상태 |
-|-------|--------|------|------|
-| Phase 1: MVP | ISSUE-001 ~ 007 | 5d | Backlog |
-| Phase 2: Personality | ISSUE-008 ~ 010 | 3d | Backlog |
-| Phase 3: Intelligence | ISSUE-011 ~ 012 | 1.5d | Backlog |
-| Phase 4: Monitoring | ISSUE-013 ~ 016 | 4d | Backlog |
-| Phase 4.5: Polish | ISSUE-017 ~ 019 | 1.5d | Backlog |
-| Phase 5: Distribution | ISSUE-020 ~ 023 | 3.5d | Backlog |
+| Phase | Issues | Status |
+|-------|--------|--------|
+| Phase 1: MVP | ISSUE-001 ~ 007 | COMPLETE |
+| Phase 2: Personality | ISSUE-008 ~ 010 | COMPLETE |
+| Phase 3: Intelligence | ISSUE-011 ~ 012 | COMPLETE |
+| Phase 4: Monitoring | ISSUE-013 ~ 016 | COMPLETE |
+| Phase 4.5: Polish | ISSUE-017 ~ 019 | COMPLETE |
+| Phase 5: Distribution | ISSUE-020 ~ 023 | COMPLETE |
 
-## Next Issues to Implement
+## Distribution
 
-1. **ISSUE-001** (P0, 0.5d): Scaffold Xcode project -- 모든 후속 이슈의 선행 조건
-2. **ISSUE-002** (P0, 1d): AppState ViewModel + state machine -- ISSUE-001 이후
-3. **ISSUE-003** (P0, 1d): SleepManager IOPMAssertion -- ISSUE-001 이후 (002와 병렬 가능)
+### Release Workflow
+- GitHub Actions workflow at `.github/workflows/release.yml` builds, signs, notarizes, and creates a DMG on tagged releases (`v*`)
+- Required GitHub Secrets: `APPLE_CERTIFICATE_BASE64`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_ID`, `APPLE_NOTARIZE_PASSWORD`
+
+### Homebrew Cask
+- Formula at `Cask/neverdie.rb` (copy to a homebrew-neverdie tap repo for distribution)
+- After first release: update SHA256 hash in the formula from `:no_check` to the actual hash
+
+### Next Steps to Release
+1. Configure GitHub Secrets for Apple signing/notarization
+2. Push a tag (e.g., `git tag v1.0.0 && git push origin v1.0.0`) to trigger the release workflow
+3. After the release is published, update the Cask formula SHA256
 
 ## Key Risks
 
-| 리스크 | 가능성 | 영향 | 완화 |
-|--------|--------|------|------|
-| Claude Code 토큰 데이터 소스 불안정 | High | High | 그레이스풀 디그레이데이션 (nil 반환) |
-| 프로세스 이름 불일치 | Medium | High | 설정 가능한 매칭 리스트 |
-| macOS hover popover 비표준 | Medium | Medium | 클릭 기반 팝오버 폴백 |
-| App Store 샌드박스 + IOPMAssertion | Medium | Medium | Homebrew Cask 기본 배포 |
+| Risk | Likelihood | Impact | Mitigation |
+|------|-----------|--------|------------|
+| Claude Code token data source instability | High | High | Graceful degradation (nil return) |
+| Process name mismatch | Medium | High | Configurable matching list |
+| macOS hover popover non-standard | Medium | Medium | Click-based popover fallback |
+| App Store sandbox + IOPMAssertion | Medium | Medium | Homebrew Cask primary distribution |
 
 ## Generated Documents
 
-- [x] `docs/prd_digest.md` -- PRD 요약
+- [x] `docs/prd_digest.md` -- PRD summary
 - [x] `docs/requirements.md` -- 18 FRs, 8 NFRs, 9 User Stories
 - [x] `docs/ux_spec.md` -- 7 flows, 5 screens, copy guidelines, accessibility
 - [x] `docs/architecture.md` -- MVVM, 5 modules, zero dependencies

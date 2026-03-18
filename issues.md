@@ -15,11 +15,11 @@
 - PRD-Ref: FR-001, NFR-001, NFR-002
 - Priority: P0
 - Estimate: 0.5d
-- Status: backlog
+- Status: done
 - Owner:
-- Branch:
-- GH-Issue:
-- PR:
+- Branch: issue/ISSUE-001-scaffold-xcode
+- GH-Issue: https://github.com/pillip/neverdie/issues/1
+- PR: https://github.com/pillip/neverdie/pull/2
 - Depends-On: none
 
 #### Goal
@@ -58,11 +58,11 @@ Delete the Xcode project and re-scaffold.
 - PRD-Ref: FR-002, FR-014
 - Priority: P0
 - Estimate: 1d
-- Status: backlog
+- Status: done
 - Owner:
-- Branch:
-- GH-Issue:
-- PR:
+- Branch: issue/ISSUE-002-appstate-viewmodel
+- GH-Issue: https://github.com/pillip/neverdie/issues/3
+- PR: https://github.com/pillip/neverdie/pull/4
 - Depends-On: ISSUE-001
 
 #### Goal
@@ -105,11 +105,11 @@ Revert the AppState.swift file.
 - PRD-Ref: FR-005, FR-006, FR-007, FR-008, FR-009
 - Priority: P0
 - Estimate: 1d
-- Status: backlog
+- Status: done
 - Owner:
-- Branch:
-- GH-Issue:
-- PR:
+- Branch: issue/ISSUE-003-sleep-manager
+- GH-Issue: https://github.com/pillip/neverdie/issues/5
+- PR: https://github.com/pillip/neverdie/pull/6
 - Depends-On: ISSUE-001
 
 #### Goal
@@ -153,11 +153,11 @@ Revert SleepManager.swift. No system state persists after process termination.
 - PRD-Ref: FR-010, FR-012
 - Priority: P0
 - Estimate: 1d
-- Status: backlog
+- Status: done
 - Owner:
-- Branch:
-- GH-Issue:
-- PR:
+- Branch: issue/ISSUE-004-static-zombie-icon
+- GH-Issue: https://github.com/pillip/neverdie/issues/7
+- PR: https://github.com/pillip/neverdie/pull/8
 - Depends-On: ISSUE-001
 
 #### Goal
@@ -197,11 +197,11 @@ Revert asset catalog changes and icon wiring. Placeholder SF Symbol returns.
 - PRD-Ref: FR-002, US-001
 - Priority: P0
 - Estimate: 1d
-- Status: backlog
+- Status: done
 - Owner:
-- Branch:
-- GH-Issue:
-- PR:
+- Branch: issue/ISSUE-005-toggle-wiring
+- GH-Issue: https://github.com/pillip/neverdie/issues/9
+- PR: https://github.com/pillip/neverdie/pull/10
 - Depends-On: ISSUE-002, ISSUE-003, ISSUE-004
 
 #### Goal
@@ -242,11 +242,11 @@ Revert click handler wiring. Icon returns to non-interactive placeholder.
 - PRD-Ref: FR-003, FR-009, US-007
 - Priority: P0
 - Estimate: 0.5d
-- Status: backlog
+- Status: done
 - Owner:
-- Branch:
-- GH-Issue:
-- PR:
+- Branch: issue/ISSUE-006-dropdown-menu
+- GH-Issue: https://github.com/pillip/neverdie/issues/13
+- PR: https://github.com/pillip/neverdie/pull/14
 - Depends-On: ISSUE-005
 
 #### Goal
@@ -284,11 +284,11 @@ Revert menu wiring. Right-click becomes no-op.
 - PRD-Ref: FR-008, FR-009
 - Priority: P0
 - Estimate: 0.5d
-- Status: backlog
+- Status: done
 - Owner:
-- Branch:
-- GH-Issue:
-- PR:
+- Branch: issue/ISSUE-007-signal-cleanup
+- GH-Issue: https://github.com/pillip/neverdie/issues/11
+- PR: https://github.com/pillip/neverdie/pull/12
 - Depends-On: ISSUE-003, ISSUE-002
 
 #### Goal
@@ -330,11 +330,11 @@ Revert signal handler and delegate changes.
 - PRD-Ref: FR-011, FR-012
 - Priority: P1
 - Estimate: 1d
-- Status: backlog
+- Status: done
 - Owner:
-- Branch:
-- GH-Issue:
-- PR:
+- Branch: issue/ISSUE-008-animated-frames
+- GH-Issue: https://github.com/pillip/neverdie/issues/19
+- PR: https://github.com/pillip/neverdie/pull/20
 - Depends-On: ISSUE-004
 
 #### Goal
@@ -372,11 +372,11 @@ Remove animation frame assets from asset catalog.
 - PRD-Ref: FR-011, FR-012, NFR-008
 - Priority: P1
 - Estimate: 1d
-- Status: backlog
+- Status: done
 - Owner:
-- Branch:
-- GH-Issue:
-- PR:
+- Branch: issue/ISSUE-009-animation-manager
+- GH-Issue: https://github.com/pillip/neverdie/issues/29
+- PR: https://github.com/pillip/neverdie/pull/32
 - Depends-On: ISSUE-008
 
 #### Goal
@@ -419,11 +419,11 @@ Revert AnimationManager.swift. Icon falls back to static display.
 - PRD-Ref: FR-010, FR-011, FR-012, US-003
 - Priority: P1
 - Estimate: 1d
-- Status: backlog
+- Status: done
 - Owner:
-- Branch:
-- GH-Issue:
-- PR:
+- Branch: issue/ISSUE-010-anim-wiring
+- GH-Issue: https://github.com/pillip/neverdie/issues/35
+- PR: https://github.com/pillip/neverdie/pull/37
 - Depends-On: ISSUE-009, ISSUE-005
 
 #### Goal
@@ -465,11 +465,11 @@ Revert wiring. Static icon for both states.
 - PRD-Ref: FR-013, NFR-004
 - Priority: P1
 - Estimate: 1d
-- Status: backlog
+- Status: done
 - Owner:
-- Branch:
-- GH-Issue:
-- PR:
+- Branch: issue/ISSUE-011-process-monitor
+- GH-Issue: https://github.com/pillip/neverdie/issues/15
+- PR: https://github.com/pillip/neverdie/pull/16
 - Depends-On: ISSUE-001
 
 #### Goal
@@ -512,11 +512,11 @@ Revert ProcessMonitor.swift. Process count remains at 0.
 - PRD-Ref: FR-014, US-004
 - Priority: P1
 - Estimate: 0.5d
-- Status: backlog
+- Status: done
 - Owner:
-- Branch:
-- GH-Issue:
-- PR:
+- Branch: issue/ISSUE-012-auto-off-wiring
+- GH-Issue: https://github.com/pillip/neverdie/issues/21
+- PR: https://github.com/pillip/neverdie/pull/22
 - Depends-On: ISSUE-011, ISSUE-002
 
 #### Goal
@@ -558,11 +558,11 @@ Revert wiring. Auto-OFF disabled, manual toggle still works.
 - PRD-Ref: FR-015, US-005
 - Priority: P1
 - Estimate: 1.5d
-- Status: backlog
+- Status: done
 - Owner:
-- Branch:
-- GH-Issue:
-- PR:
+- Branch: issue/ISSUE-013-hover-popover
+- GH-Issue: https://github.com/pillip/neverdie/issues/25
+- PR: https://github.com/pillip/neverdie/pull/26
 - Depends-On: ISSUE-005
 
 #### Goal
@@ -605,11 +605,11 @@ Revert popover and tracking area code. Hover becomes no-op.
 - PRD-Ref: FR-016, US-006
 - Priority: P1
 - Estimate: 1d
-- Status: backlog
+- Status: done
 - Owner:
-- Branch:
-- GH-Issue:
-- PR:
+- Branch: issue/ISSUE-014-token-monitor
+- GH-Issue: https://github.com/pillip/neverdie/issues/17
+- PR: https://github.com/pillip/neverdie/pull/18
 - Depends-On: ISSUE-001
 
 #### Goal
@@ -653,11 +653,11 @@ Revert TokenMonitor.swift. Token data shows "unavailable" in popover.
 - PRD-Ref: FR-017, US-006
 - Priority: P1
 - Estimate: 1d
-- Status: backlog
+- Status: done
 - Owner:
-- Branch:
-- GH-Issue:
-- PR:
+- Branch: issue/ISSUE-015-token-bars
+- GH-Issue: https://github.com/pillip/neverdie/issues/28
+- PR: https://github.com/pillip/neverdie/pull/33
 - Depends-On: ISSUE-013, ISSUE-014
 
 #### Goal
@@ -700,11 +700,11 @@ Revert token UI changes. Popover shows only process count.
 - PRD-Ref: FR-004, US-008
 - Priority: P1
 - Estimate: 0.5d
-- Status: backlog
+- Status: done
 - Owner:
-- Branch:
-- GH-Issue:
-- PR:
+- Branch: issue/ISSUE-016-launch-at-login
+- GH-Issue: https://github.com/pillip/neverdie/issues/27
+- PR: https://github.com/pillip/neverdie/pull/30
 - Depends-On: ISSUE-006
 
 #### Goal
@@ -747,11 +747,11 @@ Remove Launch at Login menu item. Feature disabled, no system side effects.
 - PRD-Ref: FR-005 (error path), US-001 (error path)
 - Priority: P1
 - Estimate: 0.5d
-- Status: backlog
+- Status: done
 - Owner:
-- Branch:
-- GH-Issue:
-- PR:
+- Branch: issue/ISSUE-017-error-states
+- GH-Issue: https://github.com/pillip/neverdie/issues/31
+- PR: https://github.com/pillip/neverdie/pull/34
 - Depends-On: ISSUE-005, ISSUE-006
 
 #### Goal
@@ -792,11 +792,11 @@ Revert error handling UI. Errors logged but not visually indicated.
 - PRD-Ref: Flow 6 (UX Spec)
 - Priority: P1
 - Estimate: 0.5d
-- Status: backlog
+- Status: done
 - Owner:
-- Branch:
-- GH-Issue:
-- PR:
+- Branch: issue/ISSUE-018-single-instance
+- GH-Issue: https://github.com/pillip/neverdie/issues/23
+- PR: https://github.com/pillip/neverdie/pull/24
 - Depends-On: ISSUE-001
 
 #### Goal
@@ -831,11 +831,11 @@ Remove guard. Multiple instances can run (harmless but wasteful).
 - PRD-Ref: NFR-007
 - Priority: P1
 - Estimate: 0.5d
-- Status: backlog
+- Status: done
 - Owner:
-- Branch:
-- GH-Issue:
-- PR:
+- Branch: issue/ISSUE-019-accessibility
+- GH-Issue: https://github.com/pillip/neverdie/issues/39
+- PR: https://github.com/pillip/neverdie/pull/40
 - Depends-On: ISSUE-010, ISSUE-013, ISSUE-006
 
 #### Goal
@@ -877,7 +877,7 @@ Revert accessibility additions. Basic functionality unchanged.
 - PRD-Ref: NFR-006
 - Priority: P2
 - Estimate: 0.5d
-- Status: backlog
+- Status: done
 - Owner:
 - Branch:
 - GH-Issue:
@@ -918,11 +918,11 @@ Use ad-hoc signing for development. Distribution blocked until resolved.
 - PRD-Ref: NFR-002, NFR-006
 - Priority: P2
 - Estimate: 1d
-- Status: backlog
+- Status: done
 - Owner:
-- Branch:
-- GH-Issue:
-- PR:
+- Branch: issue/ISSUE-021-cicd-pipeline
+- GH-Issue: https://github.com/pillip/neverdie/issues/41
+- PR: https://github.com/pillip/neverdie/pull/42
 - Depends-On: ISSUE-020, ISSUE-001
 
 #### Goal
@@ -959,11 +959,11 @@ Revert workflow file. Manual builds remain possible via Xcode.
 - PRD-Ref: Phase 5 (Distribution)
 - Priority: P2
 - Estimate: 0.5d
-- Status: backlog
+- Status: done
 - Owner:
-- Branch:
-- GH-Issue:
-- PR:
+- Branch: issue/ISSUE-022-homebrew-cask
+- GH-Issue: https://github.com/pillip/neverdie/issues/43
+- PR: https://github.com/pillip/neverdie/pull/44
 - Depends-On: ISSUE-021
 
 #### Goal
@@ -999,11 +999,11 @@ Remove formula. Direct .dmg download remains available.
 - PRD-Ref: FR-018, US-009
 - Priority: P2
 - Estimate: 1.5d
-- Status: backlog
+- Status: done
 - Owner:
-- Branch:
-- GH-Issue:
-- PR:
+- Branch: issue/ISSUE-023-per-session-tokens
+- GH-Issue: https://github.com/pillip/neverdie/issues/36
+- PR: https://github.com/pillip/neverdie/pull/38
 - Depends-On: ISSUE-015, ISSUE-014
 
 #### Goal
