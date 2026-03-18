@@ -1,0 +1,247 @@
+name: Build, Sign, Notarize & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+env:
+  SCHEME: Neverdie
+  PROJECT_PATH: Neverdie/Neverdie.xcodeproj
+  BUNDLE_ID: com.neverdie.app
+  TEAM_ID: JZ8Y9WP6RC
+  APP_NAME: Neverdie
+  ARCHIVE_PATH: build/Neverdie.xcarchive
+  EXPORT_PATH: build/export
+  DMG_NAME: Neverdie.dmg
+
+jobs:
+  build-and-release:
+    name: Build, Sign, Notarize & Create DMG
+    runs-on: macos-14
+
+    steps:
+      # ------------------------------------------------------------------
+      # 1. Checkout
+      # ------------------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ------------------------------------------------------------------
+      # 2. Select Xcode version
+      # ------------------------------------------------------------------
+      - name: Select Xcode 15
+        run: sudo xcode-select -s /Applications/Xcode_15.2.app/Contents/Developer
+
+      # ------------------------------------------------------------------
+      # 3. Import signing certificate from secrets
+      # ------------------------------------------------------------------
+      - name: Import code signing certificate
+        env:
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ github.run_id }}
+        run: |
+          # Decode certificate
+          CERTIFICATE_PATH="$RUNNER_TEMP/certificate.p12"
+          echo "$APPLE_CERTIFICATE_BASE64" | base64 --decode > "$CERTIFICATE_PATH"
+
+          # Create a temporary keychain
+          KEYCHAIN_PATH="$RUNNER_TEMP/signing.keychain-db"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Import certificate into keychain
+          security import "$CERTIFICATE_PATH" \
+            -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -A \
+            -t cert \
+            -f pkcs12 \
+            -k "$KEYCHAIN_PATH"
+
+          # Allow codesign to access the keychain
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Add keychain to search list
+          security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"')
+
+      # ------------------------------------------------------------------
+      # 4. Build & Archive
+      # ------------------------------------------------------------------
+      - name: Build and archive
+        run: |
+          xcodebuild archive \
+            -project "$PROJECT_PATH" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -archivePath "$ARCHIVE_PATH" \
+            -destination "generic/platform=macOS" \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Developer ID Application" \
+            OTHER_CODE_SIGN_FLAGS="--timestamp" \
+            SKIP_INSTALL=NO \
+            BUILD_LIBRARY_FOR_DISTRIBUTION=NO | xcpretty
+
+      # ------------------------------------------------------------------
+      # 5. Export archive
+      # ------------------------------------------------------------------
+      - name: Create export options plist
+        run: |
+          cat > build/ExportOptions.plist << 'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+            "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>developer-id</string>
+            <key>teamID</key>
+            <string>JZ8Y9WP6RC</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>signingCertificate</key>
+            <string>Developer ID Application</string>
+          </dict>
+          </plist>
+          PLIST
+
+      - name: Export archive
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath "$ARCHIVE_PATH" \
+            -exportPath "$EXPORT_PATH" \
+            -exportOptionsPlist build/ExportOptions.plist | xcpretty
+
+      # ------------------------------------------------------------------
+      # 6. Notarize
+      # ------------------------------------------------------------------
+      - name: Notarize app
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_NOTARIZE_PASSWORD: ${{ secrets.APPLE_NOTARIZE_PASSWORD }}
+        run: |
+          # Create a ZIP for notarization
+          ditto -c -k --keepParent "$EXPORT_PATH/$APP_NAME.app" build/Neverdie-notarize.zip
+
+          # Submit for notarization
+          xcrun notarytool submit build/Neverdie-notarize.zip \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_NOTARIZE_PASSWORD" \
+            --team-id "$TEAM_ID" \
+            --wait --timeout 30m
+
+          # Staple the notarization ticket
+          xcrun stapler staple "$EXPORT_PATH/$APP_NAME.app"
+
+      # ------------------------------------------------------------------
+      # 7. Verify signing and notarization
+      # ------------------------------------------------------------------
+      - name: Verify code signing
+        run: |
+          echo "--- Verify code signature ---"
+          codesign -v --deep --strict "$EXPORT_PATH/$APP_NAME.app"
+          echo "--- Verify notarization ---"
+          spctl -a -vv "$EXPORT_PATH/$APP_NAME.app"
+          echo "--- Display signing info ---"
+          codesign -dvv "$EXPORT_PATH/$APP_NAME.app"
+
+      # ------------------------------------------------------------------
+      # 8. Create DMG
+      # ------------------------------------------------------------------
+      - name: Create DMG
+        run: |
+          # Install create-dmg
+          brew install create-dmg
+
+          # Create DMG with Applications shortcut
+          create-dmg \
+            --volname "$APP_NAME" \
+            --volicon "$EXPORT_PATH/$APP_NAME.app/Contents/Resources/AppIcon.icns" \
+            --window-pos 200 120 \
+            --window-size 600 400 \
+            --icon-size 100 \
+            --icon "$APP_NAME.app" 150 190 \
+            --hide-extension "$APP_NAME.app" \
+            --app-drop-link 450 190 \
+            --no-internet-enable \
+            "build/$DMG_NAME" \
+            "$EXPORT_PATH/$APP_NAME.app" \
+          || {
+            # Fallback to hdiutil if create-dmg fails (e.g., no icon)
+            echo "create-dmg failed, falling back to hdiutil..."
+            mkdir -p build/dmg-staging
+            cp -R "$EXPORT_PATH/$APP_NAME.app" build/dmg-staging/
+            ln -s /Applications build/dmg-staging/Applications
+            hdiutil create -volname "$APP_NAME" \
+              -srcfolder build/dmg-staging \
+              -ov -format UDZO \
+              "build/$DMG_NAME"
+          }
+
+      # ------------------------------------------------------------------
+      # 9. Compute SHA256
+      # ------------------------------------------------------------------
+      - name: Compute SHA256 hash
+        id: sha256
+        run: |
+          SHA256=$(shasum -a 256 "build/$DMG_NAME" | awk '{print $1}')
+          echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
+          echo "SHA256: $SHA256"
+
+      # ------------------------------------------------------------------
+      # 10. Extract version from tag
+      # ------------------------------------------------------------------
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Version: $VERSION"
+
+      # ------------------------------------------------------------------
+      # 11. Create GitHub Release and upload DMG
+      # ------------------------------------------------------------------
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Neverdie v${{ steps.version.outputs.version }}
+          body: |
+            ## Neverdie v${{ steps.version.outputs.version }}
+
+            ### Installation
+
+            **Direct download**: Download `Neverdie.dmg` below, open it, and drag Neverdie to Applications.
+
+            **Homebrew** (if tap is configured):
+            ```bash
+            brew install --cask neverdie
+            ```
+
+            ### Verification
+            ```
+            SHA256: ${{ steps.sha256.outputs.sha256 }}
+            ```
+
+            To verify the download:
+            ```bash
+            shasum -a 256 Neverdie.dmg
+            ```
+          files: build/${{ env.DMG_NAME }}
+          draft: false
+          prerelease: false
+
+      # ------------------------------------------------------------------
+      # 12. Cleanup keychain
+      # ------------------------------------------------------------------
+      - name: Cleanup keychain
+        if: always()
+        run: |
+          KEYCHAIN_PATH="$RUNNER_TEMP/signing.keychain-db"
+          if [ -f "$KEYCHAIN_PATH" ]; then
+            security delete-keychain "$KEYCHAIN_PATH" || true
+          fi
