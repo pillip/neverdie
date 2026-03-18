@@ -1,52 +1,84 @@
+import ServiceManagement
 import SwiftUI
 
-/// SwiftUI view displayed inside the click-based popover.
+/// SwiftUI view displayed inside the status bar popover.
 ///
-/// Shows a simple ON/OFF toggle for Neverdie mode with status text.
+/// Apple-style minimal design with toggle, launch at login, and quit.
 struct ControlPopoverView: View {
     let isActive: Bool
     let hasError: Bool
     let onToggle: () -> Void
+    let onQuit: () -> Void
+
+    @State private var launchAtLogin: Bool = SMAppService.mainApp.status == .enabled
+    @State private var hoveredRow: String?
 
     var body: some View {
-        VStack(spacing: 12) {
-            // Status text
-            Text(statusText)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(statusColor)
-
-            // Toggle button
-            Button(action: onToggle) {
-                Text(isActive ? "Turn OFF" : "Turn ON")
-                    .font(.system(size: 13, weight: .semibold))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 6)
+        VStack(alignment: .leading, spacing: 0) {
+            rowButton(id: "toggle", action: onToggle) {
+                Circle()
+                    .fill(statusDotColor)
+                    .frame(width: 8, height: 8)
+                Text("Neverdie")
+                    .font(.system(size: 13))
+                Spacer()
+                Text(isActive ? "ON" : "OFF")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(isActive ? .red : .green)
-            .accessibilityLabel(isActive ? "Turn off sleep prevention" : "Turn on sleep prevention")
+            Divider()
+            rowButton(id: "launch", action: toggleLaunchAtLogin) {
+                Text("Launch at Login")
+                    .font(.system(size: 13))
+                Spacer()
+                if launchAtLogin {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Divider()
+            rowButton(id: "quit", action: onQuit) {
+                Text("Quit Neverdie")
+                    .font(.system(size: 13))
+                Spacer()
+            }
         }
-        .padding(16)
-        .frame(width: 200)
+        .frame(width: 220)
     }
 
-    private var statusText: String {
-        if hasError {
-            return "Neverdie: Error"
-        } else if isActive {
-            return "Neverdie: ON"
-        } else {
-            return "Neverdie: OFF"
-        }
+    private func rowButton<Content: View>(
+        id: String,
+        action: @escaping () -> Void,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        HStack { content() }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(hoveredRow == id ? Color.primary.opacity(0.08) : .clear)
+            .contentShape(Rectangle())
+            .onTapGesture(perform: action)
+            .onHover { isHovered in
+                hoveredRow = isHovered ? id : nil
+            }
     }
 
-    private var statusColor: Color {
-        if hasError {
-            return .red
-        } else if isActive {
-            return .green
-        } else {
-            return .secondary
+    private var statusDotColor: Color {
+        if hasError { return .red }
+        return isActive ? .green : .secondary.opacity(0.5)
+    }
+
+    private func toggleLaunchAtLogin() {
+        do {
+            if SMAppService.mainApp.status == .enabled {
+                try SMAppService.mainApp.unregister()
+                launchAtLogin = false
+            } else {
+                try SMAppService.mainApp.register()
+                launchAtLogin = true
+            }
+        } catch {
+            // silently fail
         }
     }
 }

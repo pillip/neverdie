@@ -5,8 +5,7 @@ import os
 /// Manages the NSStatusItem for the Neverdie menu bar app.
 ///
 /// StatusBarController handles:
-/// - Left-click: Show/hide popover with ON/OFF toggle
-/// - Right-click: Context menu (Quit, Launch at Login)
+/// - Click: Show/hide popover with toggle, settings, quit
 /// - Animated icon via AnimationManager (ON state)
 /// - Static sleeping zombie icon (OFF state)
 /// - Error indicator overlay (red dot)
@@ -44,60 +43,22 @@ final class StatusBarController {
 
         button.target = self
         button.action = #selector(handleClick(_:))
-        button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        button.sendAction(on: [.leftMouseUp])
         updateAccessibility()
-    }
-
-    /// Build the right-click context menu.
-    private func buildMenu() -> NSMenu {
-        let menu = NSMenu()
-
-        let statusText: String
-        if appState.lastError != nil {
-            statusText = NSLocalizedString("menu.status_error", comment: "Menu status when error")
-        } else if appState.isActive {
-            statusText = NSLocalizedString("menu.status_on", comment: "Menu status when ON")
-        } else {
-            statusText = NSLocalizedString("menu.status_off", comment: "Menu status when OFF")
-        }
-        let statusMenuItem = NSMenuItem(title: statusText, action: nil, keyEquivalent: "")
-        statusMenuItem.isEnabled = false
-        menu.addItem(statusMenuItem)
-
-        menu.addItem(NSMenuItem.separator())
-
-        let quitItem = NSMenuItem(title: NSLocalizedString("menu.quit", comment: "Quit menu item"), action: #selector(handleQuit(_:)), keyEquivalent: "q")
-        quitItem.target = self
-        menu.addItem(quitItem)
-
-        return menu
     }
 
     // MARK: - Click Handling
 
     @objc private func handleClick(_ sender: NSStatusBarButton) {
-        let event = NSApp.currentEvent
-
-        if event?.type == .rightMouseUp {
-            // Right-click: show context menu
+        if popover?.isShown == true {
             dismissPopover()
-            let menu = buildMenu()
-            statusItem.menu = menu
-            statusItem.button?.performClick(nil)
-            statusItem.menu = nil
-            logger.debug("Right-click menu shown")
         } else {
-            // Left-click: toggle popover
-            if popover?.isShown == true {
-                dismissPopover()
-            } else {
-                showPopover()
-            }
+            showPopover()
         }
     }
 
-    @objc private func handleQuit(_ sender: NSMenuItem) {
-        logger.info("Quit selected from menu")
+    private func performQuit() {
+        logger.info("Quit selected from popover")
         stopFrameObserver()
         animationManager.stopAnimation()
         appState.cleanup()
@@ -114,6 +75,9 @@ final class StatusBarController {
             hasError: appState.lastError != nil,
             onToggle: { [weak self] in
                 self?.performToggle()
+            },
+            onQuit: { [weak self] in
+                self?.performQuit()
             }
         )
         let hostingController = NSHostingController(rootView: contentView)
@@ -125,6 +89,9 @@ final class StatusBarController {
 
         pop.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover = pop
+
+        // Make popover's window key so first click isn't swallowed
+        pop.contentViewController?.view.window?.makeKey()
 
         logger.debug("Popover shown")
     }
