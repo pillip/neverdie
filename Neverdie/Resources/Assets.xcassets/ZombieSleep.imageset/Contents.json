@@ -2,12 +2,12 @@
   "images": [
     {
       "filename": "zombie_sleep_1x.png",
-      "idiom": "mac",
+      "idiom": "universal",
       "scale": "1x"
     },
     {
       "filename": "zombie_sleep_2x.png",
-      "idiom": "mac",
+      "idiom": "universal",
       "scale": "2x"
     }
   ],
@@ -16,7 +16,6 @@
     "version": 1
   },
   "properties": {
-    "preserves-vector-representation": false,
     "template-rendering-intent": "template"
   }
 }

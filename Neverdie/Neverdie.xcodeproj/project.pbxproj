@@ -20,8 +20,8 @@
 		A1000D /* PopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000E /* PopoverView.swift */; };
 		A1000E /* PopoverManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000F /* PopoverManager.swift */; };
 		A1000F /* AnimationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20012 /* AnimationManager.swift */; };
-		A10011 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = A20013 /* Localizable.strings */; };
 		A10010 /* NeverdieTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20010 /* NeverdieTests.swift */; };
+		A10011 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = A20013 /* Localizable.strings */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -50,10 +50,10 @@
 		A2000D /* TokenMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenMonitor.swift; sourceTree = "<group>"; };
 		A2000E /* PopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverView.swift; sourceTree = "<group>"; };
 		A2000F /* PopoverManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverManager.swift; sourceTree = "<group>"; };
-		A20012 /* AnimationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimationManager.swift; sourceTree = "<group>"; };
-		A20014 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		A20010 /* NeverdieTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NeverdieTests.swift; sourceTree = "<group>"; };
 		A20011 /* NeverdieTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = NeverdieTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A20012 /* AnimationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimationManager.swift; sourceTree = "<group>"; };
+		A20014 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -79,7 +79,6 @@
 			children = (
 				A70002 /* Sources */,
 				A70003 /* Resources */,
-				A20006 /* Neverdie.entitlements */,
 				A70005 /* NeverdieTests */,
 				A70004 /* Products */,
 			);
@@ -127,23 +126,13 @@
 			isa = PBXGroup;
 			children = (
 				A20010 /* NeverdieTests.swift */,
+				A20006 /* Neverdie.entitlements */,
 			);
 			name = NeverdieTests;
 			path = ../NeverdieTests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
-
-/* Begin PBXVariantGroup section */
-		A20013 /* Localizable.strings */ = {
-			isa = PBXVariantGroup;
-			children = (
-				A20014 /* en */,
-			);
-			name = Localizable.strings;
-			sourceTree = "<group>";
-		};
-/* End PBXVariantGroup section */
 
 /* Begin PBXNativeTarget section */
 		A40001 /* Neverdie */ = {
@@ -267,6 +256,17 @@
 			targetProxy = A60001 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
+
+/* Begin PBXVariantGroup section */
+		A20013 /* Localizable.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				A20014 /* en */,
+			);
+			name = Localizable.strings;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
 		B10001 /* Debug */ = {
