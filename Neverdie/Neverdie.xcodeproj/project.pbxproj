@@ -9,7 +9,6 @@
 /* Begin PBXBuildFile section */
 		A10001 /* NeverdieApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20001 /* NeverdieApp.swift */; };
 		A10002 /* Logger+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20002 /* Logger+Extensions.swift */; };
-		A10003 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = A20003 /* Info.plist */; };
 		A10004 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20004 /* Assets.xcassets */; };
 		A10005 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20007 /* AppState.swift */; };
 		A10006 /* Protocols.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20008 /* Protocols.swift */; };
@@ -40,7 +39,6 @@
 		A20004 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A20005 /* Neverdie.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Neverdie.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A20006 /* Neverdie.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Neverdie.entitlements; sourceTree = "<group>"; };
-		A20010 /* NeverdieTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NeverdieTests.swift; sourceTree = "<group>"; };
 		A20007 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		A20008 /* Protocols.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Protocols.swift; sourceTree = "<group>"; };
 		A20009 /* SleepManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepManager.swift; sourceTree = "<group>"; };
@@ -50,6 +48,7 @@
 		A2000D /* TokenMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenMonitor.swift; sourceTree = "<group>"; };
 		A2000E /* PopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverView.swift; sourceTree = "<group>"; };
 		A2000F /* PopoverManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverManager.swift; sourceTree = "<group>"; };
+		A20010 /* NeverdieTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NeverdieTests.swift; sourceTree = "<group>"; };
 		A20011 /* NeverdieTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = NeverdieTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -71,7 +70,7 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		A70001 /* = mainGroup */ = {
+		A70001 = {
 			isa = PBXGroup;
 			children = (
 				A70002 /* Sources */,
@@ -322,6 +321,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = JZ8Y9WP6RC;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Resources/Info.plist;
@@ -331,7 +331,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.neverdie.app";
+				PRODUCT_BUNDLE_IDENTIFIER = com.neverdie.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -347,6 +347,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = JZ8Y9WP6RC;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Resources/Info.plist;
@@ -356,7 +357,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.neverdie.app";
+				PRODUCT_BUNDLE_IDENTIFIER = com.neverdie.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -372,7 +373,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.neverdie.app.tests";
+				PRODUCT_BUNDLE_IDENTIFIER = com.neverdie.app.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
@@ -389,7 +390,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.neverdie.app.tests";
+				PRODUCT_BUNDLE_IDENTIFIER = com.neverdie.app.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
