@@ -29,16 +29,11 @@ cask "neverdie" do
 
   # Accessibility: the app requires no special permissions beyond standard menu bar access
   caveats <<~EOS
-    Neverdie is a menu bar app that prevents your Mac from sleeping
-    while Claude Code sessions are active.
+    Neverdie is a menu bar app that prevents your Mac from sleeping.
 
     After installation:
-    - Neverdie will appear in your menu bar
-    - Left-click the icon to toggle sleep prevention
-    - Right-click for the dropdown menu (Quit, Launch at Login)
-
-    To enable Launch at Login, right-click the menu bar icon
-    and select "Launch at Login".
+    - Neverdie will appear in your menu bar as a zombie icon
+    - Click the icon to open the popover: ON/OFF toggle, Launch at Login, Quit
   EOS
 
   zap trash: [
