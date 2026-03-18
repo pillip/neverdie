@@ -1,24 +1,24 @@
-# Review Notes: ISSUE-017 -- Error State Handling
+# Review Notes: ISSUE-010 -- Wire AnimationManager to menu bar icon
 
 ## Code Review
 
 ### Findings
-- **Correctness**: Red dot overlay composited correctly using lockFocus/unlockFocus pattern. Dot positioned at bottom-right.
-- **Error Lifecycle**: Error set in AppState.activate() on assertion failure, cleared on successful activation and in cleanup().
-- **Pulse Animation**: 2 pulses (4 alpha toggles) then solid. Timer-based with proper cleanup.
-- **Menu Integration**: Error status text shown in dropdown, overriding normal ON/OFF status.
-- **Backward Compatibility**: Existing test for `statusItem.isEnabled = false` still passes (variable naming preserved).
-- **isTemplate**: Composited icon does NOT set isTemplate=true, which is correct -- this preserves the red dot color rather than letting macOS template-render it.
+- **Correctness**: AnimationManager wired to StatusBarController via init injection. Frame observer timer polls at animation fps rate (6fps). Transitions triggered correctly on toggle.
+- **State Management**: stopAnimation() called before playTransition(.wakeUp) ensures clean state reset before starting transition sequence. Correct approach.
+- **Launch Experience**: 200ms fade-in via NSAnimationContext.runAnimationGroup provides smooth app launch.
+- **Error Handling**: Error dot compositing (iconWithErrorDot) correctly applied during both static and animated states.
+- **Cleanup**: handleQuit stops frame observer and animation before calling AppState.cleanup(). Proper teardown order.
+- **pbxproj**: AnimationManager.swift correctly added to PBXFileReference, PBXBuildFile, Sources group, and Sources build phase.
+- **Test Update**: test_toggle_wiring.py updated to match new AnimationManager-based icon switching (offIcon/onIcon replaced with animationManager/currentFrame checks).
 
 ### Changes Made
-None required.
+- Updated test_toggle_wiring.py::test_icon_switching to match new architecture.
 
 ### Follow-ups
-- Error pulse could be enhanced with Core Animation for smoother effect in future.
+- None identified.
 
 ## Security Findings
 
 ### Severity: None
 - No external input processed.
-- Error states are internal (IOKit return codes).
-- No information leakage through error messages.
+- No network I/O, no secrets, no user data handling.

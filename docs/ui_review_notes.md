@@ -1,27 +1,28 @@
-# UI Review Notes: ISSUE-017 -- Error State Handling
+# UI Review Notes: ISSUE-010 -- Wire AnimationManager to menu bar icon
 
 ## State Coverage
-- **No error**: Normal icon display (ON/OFF states unchanged)
-- **Error active**: Red dot overlay on icon, error text in menu
-- **Error + toggle success**: Error clears, icon returns to normal
-- **Error pulse**: 2 pulses (alpha toggle 0.7/1.0) then solid at 1.0
+- **OFF**: Static sleeping zombie icon (ZombieSleep via animationManager.staticOffIcon) -- PASS
+- **ON**: Animated frames cycling at 6fps via frame observer -- PASS
+- **OFF->ON**: Wake-up transition frames play before main loop starts -- PASS
+- **ON->OFF (manual)**: Fall-asleep transition plays then static OFF -- PASS
+- **ON->OFF (auto)**: Auto-OFF transition (4 frames) via playAutoOffTransition() -- PASS
+- **Launch**: 200ms opacity fade-in via NSAnimationContext -- PASS
+- **Error + animation**: Red dot overlay preserved during animated frames -- PASS
 
 ## Copy Compliance
-- Menu error text: "Neverdie: Error -- could not prevent sleep" matches AC exactly
-- VoiceOver label: "Neverdie error" matches AC
-- VoiceOver announcement: "Neverdie error: could not prevent sleep"
-- Normal state text preserved: "Neverdie: ON/OFF"
+- No new user-facing strings introduced.
+- Existing VoiceOver announcements maintained from ISSUE-017.
 
 ## Accessibility
-- Error state announced via VoiceOver when icon focused
-- Error state reflected in accessibility label
-- Pulse animation respects VoiceOver context (alpha changes don't affect screen reader)
-- Menu error status is a disabled NSMenuItem (read-only, appropriate for status display)
+- VoiceOver labels preserved from prior implementation
+- Reduced motion: AnimationManager handles static frame fallback (inherited from ISSUE-009)
+- Error announcements maintained during animation states
 
 ## Interaction Fidelity
-- Red dot 4pt size visible at both resolutions
-- NSColor.systemRed adapts to light/dark mode
-- Pulse timing (0.3s intervals) is perceptible but not jarring
+- Left-click triggers toggle with appropriate transition animation
+- Frame observer timer syncs with AnimationManager fps (no drift)
+- stopAnimation() before playTransition(.wakeUp) prevents visual glitches
+- Frame observer stopped before fall-asleep transition starts
 
 ## Findings
-- No Critical or High severity findings
+- No Critical or High severity findings.
