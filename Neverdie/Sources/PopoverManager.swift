@@ -106,8 +106,9 @@ final class PopoverManager: NSObject {
 
         let processCount = appState?.processCount ?? 0
         let tokenUsage = appState?.tokenUsage
+        let sessionUsages = appState?.sessionUsages ?? []
 
-        let contentView = PopoverView(processCount: processCount, tokenUsage: tokenUsage)
+        let contentView = PopoverView(processCount: processCount, tokenUsage: tokenUsage, sessionUsages: sessionUsages)
         let hostingController = NSHostingController(rootView: contentView)
 
         let pop = NSPopover()
