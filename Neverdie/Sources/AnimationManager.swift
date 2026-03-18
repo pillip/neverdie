@@ -5,10 +5,8 @@ import os
 enum AnimationTransition: Equatable, Sendable {
     /// OFF -> ON: zombie wakes up
     case wakeUp
-    /// ON -> OFF (manual): zombie falls asleep
+    /// ON -> OFF: zombie falls asleep
     case fallAsleep
-    /// ON -> OFF (auto): all sessions ended, longer transition
-    case autoOff
 }
 
 /// Manages frame-based animation for the menu bar icon.
@@ -35,9 +33,6 @@ final class AnimationManager {
 
     /// Fall-asleep transition frames (ZombieSleepTrans_01 through ZombieSleepTrans_03).
     private let fallAsleepFrames: [NSImage]
-
-    /// Auto-OFF transition frames (ZombieAutoOff_01 through ZombieAutoOff_04).
-    private let autoOffFrames: [NSImage]
 
     /// Static OFF icon (sleeping zombie).
     let staticOffIcon: NSImage
@@ -112,11 +107,6 @@ final class AnimationManager {
             names: ["ZombieSleepTrans_01", "ZombieSleepTrans_02", "ZombieSleepTrans_03"],
             fallback: fallbackIcon
         )
-        autoOffFrames = AnimationManager.loadFrames(
-            names: ["ZombieAutoOff_01", "ZombieAutoOff_02", "ZombieAutoOff_03", "ZombieAutoOff_04"],
-            fallback: fallbackIcon
-        )
-
         // Start with static OFF icon
         currentFrame = staticOffIcon
 
@@ -129,7 +119,7 @@ final class AnimationManager {
             self?.handleAccessibilityChange()
         }
 
-        logger.info("AnimationManager initialized: \(self.loopFrames.count) loop, \(self.wakeUpFrames.count) wake, \(self.fallAsleepFrames.count) sleep, \(self.autoOffFrames.count) autoOff frames")
+        logger.info("AnimationManager initialized: \(self.loopFrames.count) loop, \(self.wakeUpFrames.count) wake, \(self.fallAsleepFrames.count) sleep frames")
     }
 
     deinit {
@@ -216,8 +206,6 @@ final class AnimationManager {
             frames = wakeUpFrames
         case .fallAsleep:
             frames = fallAsleepFrames
-        case .autoOff:
-            frames = autoOffFrames
         }
 
         activeFrames = frames

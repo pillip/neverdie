@@ -9,7 +9,6 @@ import os
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var appState: AppState!
     private var sleepManager: SleepManager!
-    private var processMonitor: ProcessMonitor!
     private var animationManager: AnimationManager!
     private var statusBarController: StatusBarController!
 
@@ -25,9 +24,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         sleepManager = SleepManager()
-        processMonitor = ProcessMonitor()
         animationManager = AnimationManager()
-        appState = AppState(sleepManager: sleepManager, processMonitor: processMonitor)
+        appState = AppState(sleepManager: sleepManager)
         statusBarController = StatusBarController(appState: appState, animationManager: animationManager)
 
         // Register signal handlers for clean shutdown on SIGTERM/SIGINT

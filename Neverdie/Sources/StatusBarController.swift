@@ -156,16 +156,6 @@ final class StatusBarController {
         }
     }
 
-    // MARK: - Auto-OFF Animation
-
-    func playAutoOffTransition() {
-        stopFrameObserver()
-        animationManager.playTransition(type: .autoOff) { [weak self] in
-            self?.animationManager.stopAnimation()
-            self?.updateIcon()
-        }
-    }
-
     // MARK: - Icon Management
 
     func updateIcon() {
