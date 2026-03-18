@@ -34,7 +34,15 @@ jobs:
       # 2. Select Xcode version
       # ------------------------------------------------------------------
       - name: Select Xcode 15
-        run: sudo xcode-select -s /Applications/Xcode_15.2.app/Contents/Developer
+        run: |
+          # Use the latest Xcode 15.x available on the runner
+          XCODE_PATH=$(ls -d /Applications/Xcode_15*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$XCODE_PATH" ]; then
+            echo "No Xcode 15.x found, using default"
+            XCODE_PATH=$(xcode-select -p)/..
+          fi
+          sudo xcode-select -s "$XCODE_PATH/Contents/Developer"
+          echo "Selected Xcode: $(xcodebuild -version)"
 
       # ------------------------------------------------------------------
       # 3. Import signing certificate from secrets
@@ -72,8 +80,13 @@ jobs:
       # ------------------------------------------------------------------
       # 4. Build & Archive
       # ------------------------------------------------------------------
+      - name: Install xcpretty
+        run: gem install xcpretty 2>/dev/null || true
+
       - name: Build and archive
         run: |
+          set -o pipefail
+          mkdir -p build
           xcodebuild archive \
             -project "$PROJECT_PATH" \
             -scheme "$SCHEME" \
@@ -85,14 +98,29 @@ jobs:
             CODE_SIGN_IDENTITY="Developer ID Application" \
             OTHER_CODE_SIGN_FLAGS="--timestamp" \
             SKIP_INSTALL=NO \
-            BUILD_LIBRARY_FOR_DISTRIBUTION=NO | xcpretty
+            BUILD_LIBRARY_FOR_DISTRIBUTION=NO 2>&1 | xcpretty || {
+              echo "Build failed. Re-running without xcpretty for full logs..."
+              xcodebuild archive \
+                -project "$PROJECT_PATH" \
+                -scheme "$SCHEME" \
+                -configuration Release \
+                -archivePath "$ARCHIVE_PATH" \
+                -destination "generic/platform=macOS" \
+                DEVELOPMENT_TEAM="$TEAM_ID" \
+                CODE_SIGN_STYLE=Manual \
+                CODE_SIGN_IDENTITY="Developer ID Application" \
+                OTHER_CODE_SIGN_FLAGS="--timestamp" \
+                SKIP_INSTALL=NO \
+                BUILD_LIBRARY_FOR_DISTRIBUTION=NO
+            }
 
       # ------------------------------------------------------------------
       # 5. Export archive
       # ------------------------------------------------------------------
       - name: Create export options plist
         run: |
-          cat > build/ExportOptions.plist << 'PLIST'
+          mkdir -p build
+          cat > build/ExportOptions.plist <<'PLIST'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
             "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -112,10 +140,15 @@ jobs:
 
       - name: Export archive
         run: |
+          set -o pipefail
           xcodebuild -exportArchive \
             -archivePath "$ARCHIVE_PATH" \
             -exportPath "$EXPORT_PATH" \
-            -exportOptionsPlist build/ExportOptions.plist | xcpretty
+            -exportOptionsPlist build/ExportOptions.plist 2>&1 | xcpretty || \
+          xcodebuild -exportArchive \
+            -archivePath "$ARCHIVE_PATH" \
+            -exportPath "$EXPORT_PATH" \
+            -exportOptionsPlist build/ExportOptions.plist
 
       # ------------------------------------------------------------------
       # 6. Notarize
@@ -159,9 +192,11 @@ jobs:
           brew install create-dmg
 
           # Create DMG with Applications shortcut
+          # Note: create-dmg exits with code 2 on "success with warnings"
+          # (e.g., missing background image). We treat exit codes 0 and 2 as success.
+          EXIT_CODE=0
           create-dmg \
             --volname "$APP_NAME" \
-            --volicon "$EXPORT_PATH/$APP_NAME.app/Contents/Resources/AppIcon.icns" \
             --window-pos 200 120 \
             --window-size 600 400 \
             --icon-size 100 \
@@ -171,9 +206,10 @@ jobs:
             --no-internet-enable \
             "build/$DMG_NAME" \
             "$EXPORT_PATH/$APP_NAME.app" \
-          || {
-            # Fallback to hdiutil if create-dmg fails (e.g., no icon)
-            echo "create-dmg failed, falling back to hdiutil..."
+          || EXIT_CODE=$?
+
+          if [ "$EXIT_CODE" -ne 0 ] && [ "$EXIT_CODE" -ne 2 ]; then
+            echo "create-dmg failed (exit code $EXIT_CODE), falling back to hdiutil..."
             mkdir -p build/dmg-staging
             cp -R "$EXPORT_PATH/$APP_NAME.app" build/dmg-staging/
             ln -s /Applications build/dmg-staging/Applications
@@ -181,7 +217,10 @@ jobs:
               -srcfolder build/dmg-staging \
               -ov -format UDZO \
               "build/$DMG_NAME"
-          }
+          fi
+
+          # Verify DMG was created
+          ls -lh "build/$DMG_NAME"
 
       # ------------------------------------------------------------------
       # 9. Compute SHA256
