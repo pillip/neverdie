@@ -28,10 +28,10 @@ struct PopoverView: View {
                         TokenBarsSection(usage: usage)
                     }
                 } else {
-                    Text("Token data unavailable")
+                    Text(NSLocalizedString("popover.token_unavailable", comment: "Token data not available"))
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
-                        .accessibilityLabel("Token data unavailable")
+                        .accessibilityLabel(NSLocalizedString("popover.token_unavailable", comment: "Token data not available"))
                 }
             }
             .padding(12)
@@ -44,11 +44,11 @@ struct PopoverView: View {
     private var sessionText: String {
         switch processCount {
         case 0:
-            return "No active sessions"
+            return NSLocalizedString("popover.no_sessions", comment: "No active sessions")
         case 1:
-            return "1 active session"
+            return NSLocalizedString("popover.one_session", comment: "1 active session")
         default:
-            return "\(processCount) active sessions"
+            return String(format: NSLocalizedString("popover.n_sessions", comment: "%d active sessions"), processCount)
         }
     }
 }
@@ -75,7 +75,7 @@ struct PerSessionTokenView: View {
                             .truncationMode(.middle)
                     }
                 )
-                .accessibilityLabel("Session: \(session.label)")
+                .accessibilityLabel(String(format: NSLocalizedString("popover.session_label", comment: "Session accessibility label"), session.label))
 
                 if index < sessions.count - 1 {
                     Divider()
@@ -98,9 +98,9 @@ struct TokenBarsSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            TokenBarView(label: "Context", value: usage.context, maxValue: maxValue)
-            TokenBarView(label: "Input", value: usage.input, maxValue: maxValue)
-            TokenBarView(label: "Output", value: usage.output, maxValue: maxValue)
+            TokenBarView(label: NSLocalizedString("token.context", comment: "Context token label"), value: usage.context, maxValue: maxValue)
+            TokenBarView(label: NSLocalizedString("token.input", comment: "Input token label"), value: usage.input, maxValue: maxValue)
+            TokenBarView(label: NSLocalizedString("token.output", comment: "Output token label"), value: usage.output, maxValue: maxValue)
         }
     }
 }
@@ -145,7 +145,7 @@ struct TokenBarView: View {
             .frame(height: 4)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(label): \(TokenFormatter.format(value)) tokens")
+        .accessibilityLabel(String(format: NSLocalizedString("token.accessibility", comment: "Token bar accessibility"), label, TokenFormatter.format(value)))
     }
 }
 

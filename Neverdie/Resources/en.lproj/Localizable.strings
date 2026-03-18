@@ -1,0 +1,34 @@
+/* Localizable.strings -- English (Base)
+   Neverdie -- macOS menu bar app for preventing sleep during Claude Code sessions.
+*/
+
+/* Status Bar */
+"status.sleep_prevention_on" = "Neverdie -- sleep prevention ON";
+"status.sleep_prevention_off" = "Neverdie -- sleep prevention OFF";
+"status.error" = "Neverdie error";
+
+/* VoiceOver Announcements */
+"announce.on" = "Neverdie ON";
+"announce.off" = "Neverdie OFF";
+"announce.error" = "Neverdie error: could not prevent sleep";
+"announce.auto_off" = "Neverdie OFF -- all sessions ended";
+
+/* Dropdown Menu */
+"menu.status_on" = "Neverdie: ON";
+"menu.status_off" = "Neverdie: OFF";
+"menu.status_error" = "Neverdie: Error -- could not prevent sleep";
+"menu.quit" = "Quit Neverdie";
+"menu.launch_at_login" = "Launch at Login";
+
+/* Popover */
+"popover.no_sessions" = "No active sessions";
+"popover.one_session" = "1 active session";
+"popover.n_sessions" = "%d active sessions";
+"popover.token_unavailable" = "Token data unavailable";
+"popover.session_label" = "Session: %@";
+
+/* Token Bars */
+"token.context" = "Context";
+"token.input" = "Input";
+"token.output" = "Output";
+"token.accessibility" = "%@: %@ tokens";

@@ -73,10 +73,11 @@ final class StatusBarController {
         // Status line (disabled, informational)
         let statusText: String
         if appState.lastError != nil {
-            statusText = "Neverdie: Error -- could not prevent sleep"
+            statusText = NSLocalizedString("menu.status_error", comment: "Menu status when error")
+        } else if appState.isActive {
+            statusText = NSLocalizedString("menu.status_on", comment: "Menu status when ON")
         } else {
-            let state = appState.isActive ? "ON" : "OFF"
-            statusText = "Neverdie: \(state)"
+            statusText = NSLocalizedString("menu.status_off", comment: "Menu status when OFF")
         }
         let statusItem = NSMenuItem(title: statusText, action: nil, keyEquivalent: "")
         statusItem.isEnabled = false
@@ -85,7 +86,7 @@ final class StatusBarController {
         menu.addItem(NSMenuItem.separator())
 
         // Quit item
-        let quitItem = NSMenuItem(title: "Quit Neverdie", action: #selector(handleQuit(_:)), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: NSLocalizedString("menu.quit", comment: "Quit menu item"), action: #selector(handleQuit(_:)), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
 
@@ -296,21 +297,26 @@ final class StatusBarController {
         guard let button = statusItem.button else { return }
 
         if appState.lastError != nil {
-            button.setAccessibilityLabel("Neverdie error")
+            button.setAccessibilityLabel(NSLocalizedString("status.error", comment: "Accessibility label when error"))
+        } else if appState.isActive {
+            button.setAccessibilityLabel(NSLocalizedString("status.sleep_prevention_on", comment: "Accessibility label when ON"))
         } else {
-            let state = appState.isActive ? "ON" : "OFF"
-            button.setAccessibilityLabel("Neverdie -- sleep prevention \(state)")
+            button.setAccessibilityLabel(NSLocalizedString("status.sleep_prevention_off", comment: "Accessibility label when OFF"))
         }
+
+        // Ensure keyboard activation (Space/Enter) triggers the button action
+        button.setAccessibilityRole(.button)
     }
 
     /// Post a VoiceOver announcement when state changes.
     private func announceStateChange() {
         let announcement: String
         if appState.lastError != nil {
-            announcement = "Neverdie error: could not prevent sleep"
+            announcement = NSLocalizedString("announce.error", comment: "VoiceOver error announcement")
+        } else if appState.isActive {
+            announcement = NSLocalizedString("announce.on", comment: "VoiceOver ON announcement")
         } else {
-            let state = appState.isActive ? "ON" : "OFF"
-            announcement = "Neverdie \(state)"
+            announcement = NSLocalizedString("announce.off", comment: "VoiceOver OFF announcement")
         }
 
         let userInfo: [NSAccessibility.NotificationUserInfoKey: Any] = [
