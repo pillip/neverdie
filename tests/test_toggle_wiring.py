@@ -54,7 +54,7 @@ def test_accessibility_label():
     """Accessibility label updates with state."""
     content = (SOURCES / "StatusBarController.swift").read_text()
     assert "setAccessibilityLabel" in content or "accessibilityLabel" in content
-    assert "sleep prevention" in content
+    assert "sleep_prevention" in content or "sleep prevention" in content
 
 
 def test_app_delegate_exists():

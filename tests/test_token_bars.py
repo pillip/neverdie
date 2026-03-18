@@ -35,13 +35,13 @@ class TestTokenBarView:
         assert "struct TokenBarView" in pv_source
 
     def test_context_bar(self, pv_source):
-        assert '"Context"' in pv_source
+        assert '"token.context"' in pv_source or '"Context"' in pv_source
 
     def test_input_bar(self, pv_source):
-        assert '"Input"' in pv_source
+        assert '"token.input"' in pv_source or '"Input"' in pv_source
 
     def test_output_bar(self, pv_source):
-        assert '"Output"' in pv_source
+        assert '"token.output"' in pv_source or '"Output"' in pv_source
 
     def test_bar_has_label(self, pv_source):
         assert "let label: String" in pv_source
@@ -137,8 +137,8 @@ class TestAccessibility:
         assert "accessibilityElement" in pv_source
 
     def test_tokens_in_label(self, pv_source):
-        """Accessibility label includes 'tokens'."""
-        assert "tokens" in pv_source
+        """Accessibility label references token accessibility key."""
+        assert "token.accessibility" in pv_source or "tokens" in pv_source
 
 
 class TestPopoverManagerIntegration:
