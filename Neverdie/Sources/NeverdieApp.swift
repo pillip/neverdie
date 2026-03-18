@@ -57,10 +57,14 @@ struct NeverdieApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {
-        // Use Settings scene as a no-op since we manage the menu bar via NSStatusItem
-        Settings {
-            EmptyView()
+        // Invisible window — required by SwiftUI App protocol but never shown.
+        // Using Window instead of Settings prevents a Settings window from
+        // appearing when the app is launched via Spotlight.
+        Window("", id: "hidden") {
+            EmptyView().frame(width: 0, height: 0)
         }
+        .defaultSize(width: 0, height: 0)
+        .windowResizability(.contentSize)
     }
 }
 
