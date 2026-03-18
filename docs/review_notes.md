@@ -1,18 +1,17 @@
-# Review Notes: ISSUE-010 -- Wire AnimationManager to menu bar icon
+# Review Notes: ISSUE-023 -- Per-session token breakdown in popover
 
 ## Code Review
 
 ### Findings
-- **Correctness**: AnimationManager wired to StatusBarController via init injection. Frame observer timer polls at animation fps rate (6fps). Transitions triggered correctly on toggle.
-- **State Management**: stopAnimation() called before playTransition(.wakeUp) ensures clean state reset before starting transition sequence. Correct approach.
-- **Launch Experience**: 200ms fade-in via NSAnimationContext.runAnimationGroup provides smooth app launch.
-- **Error Handling**: Error dot compositing (iconWithErrorDot) correctly applied during both static and animated states.
-- **Cleanup**: handleQuit stops frame observer and animation before calling AppState.cleanup(). Proper teardown order.
-- **pbxproj**: AnimationManager.swift correctly added to PBXFileReference, PBXBuildFile, Sources group, and Sources build phase.
-- **Test Update**: test_toggle_wiring.py updated to match new AnimationManager-based icon switching (offIcon/onIcon replaced with animationManager/currentFrame checks).
+- **Correctness**: PerSessionTokenView uses DisclosureGroup with ForEach for collapsible sections. Conditional display: 2+ sessions shows per-session view, 1 session shows aggregate. Clean approach.
+- **Frame Modifier**: `.frame(width: 240).frame(maxHeight: 400)` uses separate modifiers (SwiftUI does not accept both width and maxHeight in a single .frame() call). Correct fix.
+- **Data Flow**: AppState.refreshTokenUsage() calls both readUsage() and readPerSessionUsage(). PopoverManager passes sessionUsages to PopoverView. Complete data pipeline.
+- **Expansion State**: DisclosureGroup uses `.constant(index == 0)` -- first expanded, others collapsed. Read-only binding is acceptable since popover refreshes on each open.
+- **Cleanup**: sessionUsages reset to [] in AppState.cleanup(). Proper teardown.
+- **Separators**: Divider between sessions (except after last) for visual clarity.
 
 ### Changes Made
-- Updated test_toggle_wiring.py::test_icon_switching to match new architecture.
+None required.
 
 ### Follow-ups
 - None identified.
@@ -20,5 +19,5 @@
 ## Security Findings
 
 ### Severity: None
-- No external input processed.
-- No network I/O, no secrets, no user data handling.
+- Token data read locally from filesystem. No network I/O.
+- No user input handling beyond display of filesystem data.
