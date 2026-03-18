@@ -13,6 +13,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusBarController: StatusBarController!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Hide Dock icon but remain visible in Spotlight (unlike LSUIElement)
+        NSApp.setActivationPolicy(.accessory)
         // Single-instance guard: quit if another instance is already running
         let runningInstances = NSRunningApplication.runningApplications(
             withBundleIdentifier: Bundle.main.bundleIdentifier ?? "com.neverdie.app"
@@ -46,7 +48,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 /// Main entry point for the Neverdie menu bar app.
 ///
 /// Neverdie prevents macOS system sleep while Claude Code is running.
-/// It lives in the menu bar only (no Dock icon via LSUIElement=true).
+/// It lives in the menu bar only (no Dock icon via .accessory activation policy).
 ///
 /// Uses NSApplicationDelegateAdaptor to wire AppDelegate for lifecycle
 /// management and NSStatusItem-based menu bar control.
