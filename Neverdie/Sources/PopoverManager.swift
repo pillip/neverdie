@@ -101,9 +101,13 @@ final class PopoverManager: NSObject {
         guard let button = statusButton else { return }
         guard popover == nil || popover?.isShown == false else { return }
 
-        let processCount = appState?.processCount ?? 0
+        // Refresh token data when popover opens
+        appState?.refreshTokenUsage()
 
-        let contentView = PopoverView(processCount: processCount)
+        let processCount = appState?.processCount ?? 0
+        let tokenUsage = appState?.tokenUsage
+
+        let contentView = PopoverView(processCount: processCount, tokenUsage: tokenUsage)
         let hostingController = NSHostingController(rootView: contentView)
 
         let pop = NSPopover()
@@ -113,9 +117,6 @@ final class PopoverManager: NSObject {
 
         pop.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover = pop
-
-        // Refresh token data when popover opens
-        appState?.refreshTokenUsage()
 
         logger.debug("Popover shown with \(processCount) processes")
     }
