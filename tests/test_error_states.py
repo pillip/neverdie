@@ -101,7 +101,10 @@ class TestDropdownErrorStatus:
     """AC: Dropdown shows 'Neverdie: Error -- could not prevent sleep'."""
 
     def test_error_status_text(self, sbc_source):
-        assert "Error -- could not prevent sleep" in sbc_source
+        assert (
+            "menu.status_error" in sbc_source
+            or "Error -- could not prevent sleep" in sbc_source
+        )
 
     def test_error_check_in_menu(self, sbc_source):
         """Menu build checks for error state."""
@@ -112,11 +115,13 @@ class TestVoiceOverError:
     """AC: VoiceOver announces 'Neverdie error' when error active."""
 
     def test_error_accessibility_label(self, sbc_source):
-        assert '"Neverdie error"' in sbc_source
+        assert '"status.error"' in sbc_source or '"Neverdie error"' in sbc_source
 
     def test_error_announcement(self, sbc_source):
         """VoiceOver announcement includes error info."""
-        assert "could not prevent sleep" in sbc_source
+        assert (
+            '"announce.error"' in sbc_source or "could not prevent sleep" in sbc_source
+        )
 
 
 class TestErrorClearing:

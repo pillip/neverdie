@@ -41,6 +41,9 @@ final class AppState {
     /// Aggregate token usage from Claude Code sessions.
     private(set) var tokenUsage: TokenUsage? = nil
 
+    /// Per-session token usage data.
+    private(set) var sessionUsages: [SessionTokenUsage] = []
+
     /// Whether Claude Code processes have ever been detected during this activation cycle.
     private(set) var claudeProcessesEverDetected: Bool = false
 
@@ -175,6 +178,7 @@ final class AppState {
     /// Refresh token usage data on demand.
     func refreshTokenUsage() {
         tokenUsage = tokenMonitor?.readUsage()
+        sessionUsages = tokenMonitor?.readPerSessionUsage() ?? []
     }
 
     // MARK: - Cleanup
@@ -191,6 +195,7 @@ final class AppState {
         processCount = 0
         claudeProcessesEverDetected = false
         tokenUsage = nil
+        sessionUsages = []
         lastError = nil
         stopMonitoring()
         Logger.lifecycle.info("Cleanup complete")

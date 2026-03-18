@@ -6,36 +6,21 @@ import os
 ///
 /// StatusBarController handles:
 /// - Left-click: Toggle Neverdie mode via AppState
-/// - Icon switching between OFF (zombie sleep) and ON (bolt.fill placeholder)
+/// - Animated icon via AnimationManager (ON state)
+/// - Static sleeping zombie icon (OFF state)
+/// - Transition animations (wake-up, fall-asleep, auto-OFF)
 /// - Error indicator overlay (red dot) when errors occur
 /// - VoiceOver announcements on state changes and errors
-/// - AppKit-level NSStatusItem management
+/// - App launch fade-in (200ms)
 final class StatusBarController {
     private var statusItem: NSStatusItem
     private let appState: AppState
+    private let animationManager: AnimationManager
     private let logger = Logger.ui
     private var popoverManager: PopoverManager?
 
-    // MARK: - Icon Images
-
-    /// Static sleeping zombie icon for OFF state.
-    private lazy var offIcon: NSImage? = {
-        guard let img = NSImage(named: "ZombieSleep") else {
-            logger.warning("ZombieSleep asset not found, will use fallback")
-            return nil
-        }
-        img.isTemplate = true
-        img.size = NSSize(width: 18, height: 18)
-        return img
-    }()
-
-    /// Placeholder ON icon (SF Symbol bolt.fill until animation is wired).
-    private lazy var onIcon: NSImage? = {
-        let img = NSImage(systemSymbolName: "bolt.fill", accessibilityDescription: "Neverdie active")
-        img?.isTemplate = true
-        img?.size = NSSize(width: 18, height: 18)
-        return img
-    }()
+    /// Timer to observe AnimationManager.currentFrame changes.
+    private var frameObserverTimer: Timer?
 
     // MARK: - Error Pulse State
 
@@ -48,15 +33,19 @@ final class StatusBarController {
     // MARK: - Init
 
     /// Create a StatusBarController.
-    /// - Parameter appState: The shared AppState instance.
-    init(appState: AppState) {
+    /// - Parameters:
+    ///   - appState: The shared AppState instance.
+    ///   - animationManager: The AnimationManager for icon frame cycling.
+    init(appState: AppState, animationManager: AnimationManager) {
         self.appState = appState
+        self.animationManager = animationManager
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
 
         setupButton()
         updateIcon()
         setupPopover()
-        logger.info("StatusBarController initialized")
+        performLaunchFadeIn()
+        logger.info("StatusBarController initialized with AnimationManager")
     }
 
     // MARK: - Setup
@@ -84,10 +73,11 @@ final class StatusBarController {
         // Status line (disabled, informational)
         let statusText: String
         if appState.lastError != nil {
-            statusText = "Neverdie: Error -- could not prevent sleep"
+            statusText = NSLocalizedString("menu.status_error", comment: "Menu status when error")
+        } else if appState.isActive {
+            statusText = NSLocalizedString("menu.status_on", comment: "Menu status when ON")
         } else {
-            let state = appState.isActive ? "ON" : "OFF"
-            statusText = "Neverdie: \(state)"
+            statusText = NSLocalizedString("menu.status_off", comment: "Menu status when OFF")
         }
         let statusItem = NSMenuItem(title: statusText, action: nil, keyEquivalent: "")
         statusItem.isEnabled = false
@@ -96,7 +86,7 @@ final class StatusBarController {
         menu.addItem(NSMenuItem.separator())
 
         // Quit item
-        let quitItem = NSMenuItem(title: "Quit Neverdie", action: #selector(handleQuit(_:)), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: NSLocalizedString("menu.quit", comment: "Quit menu item"), action: #selector(handleQuit(_:)), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
 
@@ -120,8 +110,26 @@ final class StatusBarController {
             statusItem.menu = nil
             logger.debug("Right-click menu shown")
         } else {
-            // Left-click: toggle
+            // Left-click: toggle with transition animations
+            let wasActive = appState.isActive
             appState.toggle()
+
+            if appState.isActive && !wasActive {
+                // OFF -> ON: play wake-up transition then start loop
+                animationManager.stopAnimation()
+                animationManager.playTransition(type: .wakeUp) { [weak self] in
+                    self?.animationManager.startAnimation()
+                }
+                startFrameObserver()
+            } else if !appState.isActive && wasActive {
+                // ON -> OFF: play fall-asleep transition
+                stopFrameObserver()
+                animationManager.playTransition(type: .fallAsleep) { [weak self] in
+                    self?.animationManager.stopAnimation()
+                    self?.updateIcon()
+                }
+            }
+
             updateIcon()
             updateAccessibility()
             announceStateChange()
@@ -131,8 +139,50 @@ final class StatusBarController {
 
     @objc private func handleQuit(_ sender: NSMenuItem) {
         logger.info("Quit selected from menu")
+        stopFrameObserver()
+        animationManager.stopAnimation()
         appState.cleanup()
         NSApplication.shared.terminate(nil)
+    }
+
+    // MARK: - Frame Observer
+
+    /// Start observing AnimationManager.currentFrame changes to update the icon.
+    private func startFrameObserver() {
+        stopFrameObserver()
+        // Poll currentFrame at the animation fps rate
+        frameObserverTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / animationManager.fps, repeats: true) { [weak self] _ in
+            self?.updateAnimatedIcon()
+        }
+        frameObserverTimer?.tolerance = 0.05
+    }
+
+    /// Stop observing frame changes.
+    private func stopFrameObserver() {
+        frameObserverTimer?.invalidate()
+        frameObserverTimer = nil
+    }
+
+    /// Update the icon from AnimationManager's current frame.
+    private func updateAnimatedIcon() {
+        guard let button = statusItem.button else { return }
+        let frame = animationManager.currentFrame
+        if appState.lastError != nil {
+            button.image = iconWithErrorDot(frame)
+        } else {
+            button.image = frame
+        }
+    }
+
+    // MARK: - Auto-OFF Animation
+
+    /// Called when auto-OFF triggers to play the auto-OFF transition.
+    func playAutoOffTransition() {
+        stopFrameObserver()
+        animationManager.playTransition(type: .autoOff) { [weak self] in
+            self?.animationManager.stopAnimation()
+            self?.updateIcon()
+        }
     }
 
     // MARK: - Icon Management
@@ -141,42 +191,60 @@ final class StatusBarController {
     func updateIcon() {
         guard let button = statusItem.button else { return }
 
-        let baseIcon: NSImage?
-        if appState.isActive {
-            baseIcon = onIcon
-        } else {
-            baseIcon = offIcon
+        if animationManager.isAnimating || animationManager.isPlayingTransition {
+            // Animation is running -- frame observer handles updates
+            let frame = animationManager.currentFrame
+            if appState.lastError != nil {
+                button.image = iconWithErrorDot(frame)
+            } else {
+                button.image = frame
+            }
+            return
         }
 
-        if let icon = baseIcon {
-            if appState.lastError != nil {
-                button.image = iconWithErrorDot(icon)
-                startErrorPulseAnimation()
-            } else {
-                stopErrorPulseAnimation()
-                button.image = icon
-            }
+        // Static icon
+        let baseIcon: NSImage
+        if appState.isActive {
+            baseIcon = animationManager.currentFrame
         } else {
-            button.image = nil
-            button.title = "ND"
+            baseIcon = animationManager.staticOffIcon
         }
+
+        if appState.lastError != nil {
+            button.image = iconWithErrorDot(baseIcon)
+            startErrorPulseAnimation()
+        } else {
+            stopErrorPulseAnimation()
+            button.image = baseIcon
+        }
+    }
+
+    // MARK: - Launch Fade-In
+
+    /// Perform a 200ms fade-in on app launch.
+    private func performLaunchFadeIn() {
+        guard let button = statusItem.button else { return }
+        button.alphaValue = 0.0
+
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.2
+            button.animator().alphaValue = 1.0
+        }
+
+        logger.debug("Launch fade-in started (200ms)")
     }
 
     // MARK: - Error Indicator
 
     /// Composites a 2x2pt red dot onto the bottom-right of an icon image.
-    /// - Parameter baseIcon: The base icon to overlay on.
-    /// - Returns: A new NSImage with the red dot overlay.
     private func iconWithErrorDot(_ baseIcon: NSImage) -> NSImage {
         let size = baseIcon.size
         let composited = NSImage(size: size)
         composited.lockFocus()
 
-        // Draw base icon
         baseIcon.draw(in: NSRect(origin: .zero, size: size))
 
-        // Draw red dot (2x2pt) at bottom-right corner
-        let dotSize: CGFloat = 4.0  // 4pt for visibility at @2x
+        let dotSize: CGFloat = 4.0
         let dotRect = NSRect(
             x: size.width - dotSize - 1,
             y: 1,
@@ -187,7 +255,6 @@ final class StatusBarController {
         NSBezierPath(ovalIn: dotRect).fill()
 
         composited.unlockFocus()
-        // Do not set isTemplate=true so the red dot color is preserved
         return composited
     }
 
@@ -206,11 +273,9 @@ final class StatusBarController {
             guard let button = self.statusItem.button else { return }
 
             if self.errorPulseCount <= 4 {
-                // Toggle opacity for pulse effect (2 full pulses = 4 toggles)
                 let isVisible = self.errorPulseCount % 2 == 0
                 button.alphaValue = isVisible ? 1.0 : 0.7
             } else {
-                // After 2 pulses, remain solid
                 button.alphaValue = 1.0
                 timer.invalidate()
                 self.errorPulseTimer = nil
@@ -232,21 +297,26 @@ final class StatusBarController {
         guard let button = statusItem.button else { return }
 
         if appState.lastError != nil {
-            button.setAccessibilityLabel("Neverdie error")
+            button.setAccessibilityLabel(NSLocalizedString("status.error", comment: "Accessibility label when error"))
+        } else if appState.isActive {
+            button.setAccessibilityLabel(NSLocalizedString("status.sleep_prevention_on", comment: "Accessibility label when ON"))
         } else {
-            let state = appState.isActive ? "ON" : "OFF"
-            button.setAccessibilityLabel("Neverdie -- sleep prevention \(state)")
+            button.setAccessibilityLabel(NSLocalizedString("status.sleep_prevention_off", comment: "Accessibility label when OFF"))
         }
+
+        // Ensure keyboard activation (Space/Enter) triggers the button action
+        button.setAccessibilityRole(.button)
     }
 
     /// Post a VoiceOver announcement when state changes.
     private func announceStateChange() {
         let announcement: String
         if appState.lastError != nil {
-            announcement = "Neverdie error: could not prevent sleep"
+            announcement = NSLocalizedString("announce.error", comment: "VoiceOver error announcement")
+        } else if appState.isActive {
+            announcement = NSLocalizedString("announce.on", comment: "VoiceOver ON announcement")
         } else {
-            let state = appState.isActive ? "ON" : "OFF"
-            announcement = "Neverdie \(state)"
+            announcement = NSLocalizedString("announce.off", comment: "VoiceOver OFF announcement")
         }
 
         let userInfo: [NSAccessibility.NotificationUserInfoKey: Any] = [

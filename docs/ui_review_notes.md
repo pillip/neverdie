@@ -1,27 +1,32 @@
-# UI Review Notes: ISSUE-017 -- Error State Handling
+# UI Review Notes: ISSUE-023 -- Per-session token breakdown in popover
 
 ## State Coverage
-- **No error**: Normal icon display (ON/OFF states unchanged)
-- **Error active**: Red dot overlay on icon, error text in menu
-- **Error + toggle success**: Error clears, icon returns to normal
-- **Error pulse**: 2 pulses (alpha toggle 0.7/1.0) then solid at 1.0
+- **No token data (nil)**: "Token data unavailable" text -- PASS
+- **1 session**: Single aggregate TokenBarsSection -- PASS
+- **2+ sessions**: PerSessionTokenView with DisclosureGroup -- PASS
+- **3+ sessions**: ScrollView with maxHeight 400pt -- PASS
+- **First session**: Expanded by default (index == 0) -- PASS
+- **Other sessions**: Collapsed by default -- PASS
 
 ## Copy Compliance
-- Menu error text: "Neverdie: Error -- could not prevent sleep" matches AC exactly
-- VoiceOver label: "Neverdie error" matches AC
-- VoiceOver announcement: "Neverdie error: could not prevent sleep"
-- Normal state text preserved: "Neverdie: ON/OFF"
+- Session labels show working directory or PID as fallback
+- "Token data unavailable" fallback text consistent with existing design
+- No new localization strings needed
+
+## Token Usage
+- System fonts: 11pt medium for session labels, consistent with existing design
+- Dividers between sessions for visual separation
+- Padding: 12pt outer, 4pt inner spacing -- consistent
 
 ## Accessibility
-- Error state announced via VoiceOver when icon focused
-- Error state reflected in accessibility label
-- Pulse animation respects VoiceOver context (alpha changes don't affect screen reader)
-- Menu error status is a disabled NSMenuItem (read-only, appropriate for status display)
+- DisclosureGroup accessibilityLabel: "Session: {label}"
+- Individual bars inherit existing accessibilityElement/accessibilityLabel from TokenBarView
+- lineLimit(1) with truncationMode(.middle) for long directory paths -- accessible
 
 ## Interaction Fidelity
-- Red dot 4pt size visible at both resolutions
-- NSColor.systemRed adapts to light/dark mode
-- Pulse timing (0.3s intervals) is perceptible but not jarring
+- DisclosureGroup expand/collapse is read-only (.constant binding)
+- ScrollView allows natural scrolling for many sessions
+- Popover width fixed at 240pt, consistent with existing design
 
 ## Findings
-- No Critical or High severity findings
+- No Critical or High severity findings.

@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var appState: AppState!
     private var sleepManager: SleepManager!
     private var processMonitor: ProcessMonitor!
+    private var animationManager: AnimationManager!
     private var statusBarController: StatusBarController!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -25,8 +26,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         sleepManager = SleepManager()
         processMonitor = ProcessMonitor()
+        animationManager = AnimationManager()
         appState = AppState(sleepManager: sleepManager, processMonitor: processMonitor)
-        statusBarController = StatusBarController(appState: appState)
+        statusBarController = StatusBarController(appState: appState, animationManager: animationManager)
 
         // Register signal handlers for clean shutdown on SIGTERM/SIGINT
         SignalHandler.register { [weak self] in
