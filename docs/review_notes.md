@@ -1,25 +1,33 @@
-# Review Notes: ISSUE-019 -- Accessibility labels and keyboard navigation
+# Review Notes: ISSUE-021 -- CI/CD Pipeline with GitHub Actions
 
 ## Code Review
 
 ### Findings
-- **Correctness**: All user-facing strings externalized via NSLocalizedString with proper key names and comments. Localizable.strings contains 18 keys covering status bar, VoiceOver announcements, menu items, popover text, and token bars.
-- **Accessibility Role**: `setAccessibilityRole(.button)` correctly set on status item button, enabling Space/Enter keyboard activation.
-- **VoiceOver Announcements**: `announceStateChange()` uses localized strings for all three states (on, off, error). Priority set to `.high` for state change notifications.
-- **Localized Format Strings**: `popover.n_sessions` ("%d active sessions") and `popover.session_label` ("Session: %@") and `token.accessibility` ("%@: %@ tokens") use proper format specifiers.
-- **Xcode Integration**: PBXVariantGroup correctly configured for Localizable.strings with en.lproj variant. File registered in Resources build phase.
-- **Existing Test Compatibility**: 4 existing test files updated to accept both localized key references and original hardcoded strings using `or` conditions, maintaining backward compatibility.
-- **No Regressions**: All 418 tests pass including 43 new accessibility-specific tests.
+- **Xcode version**: Hardcoded Xcode_15.2.app path replaced with dynamic detection of latest Xcode 15.x on the runner.
+- **xcpretty availability**: Added explicit installation step; build commands now fall back to raw xcodebuild output if xcpretty piping fails.
+- **ExportOptions.plist**: Heredoc generates valid plist content. Added mkdir -p build to ensure directory exists.
+- **create-dmg exit code**: create-dmg returns exit code 2 on "success with warnings" (e.g., missing background image). Updated to treat exit codes 0 and 2 as success, only falling back to hdiutil for actual failures.
+- **Removed --volicon flag**: The app may not have AppIcon.icns in the expected path; removed to avoid unnecessary failures.
+- **set -o pipefail**: Added to xcodebuild piped commands to properly catch build failures hidden by xcpretty.
+- **DMG verification**: Added ls -lh to confirm DMG was created.
 
 ### Changes Made
-None required during review -- implementation is clean and complete.
+1. Dynamic Xcode 15.x selection instead of hardcoded path.
+2. Added xcpretty install step with graceful fallback.
+3. Added `set -o pipefail` and retry-without-xcpretty pattern for builds.
+4. Fixed create-dmg exit code handling (0 and 2 are success).
+5. Added `mkdir -p build` before ExportOptions.plist creation.
+6. Removed `--volicon` flag from create-dmg (may not exist).
 
 ### Follow-ups
-- When adding new languages, create additional .lproj directories and add variants to the PBXVariantGroup.
-- Consider adding `accessibilityHint` to the status item button describing what happens on activation.
+- The heredoc plist will have leading whitespace from YAML indentation; xcodebuild tolerates this but a future cleanup could use a dedicated plist file in the repo.
+- Consider caching brew dependencies (create-dmg) for faster CI runs.
 
 ## Security Findings
 
 ### Severity: None
-- No new attack surface introduced. String externalization is a display-only change.
-- No user input handling, no network I/O, no credential changes.
+- Signing certificate handled via GitHub Secrets (APPLE_CERTIFICATE_BASE64), decoded only at runtime.
+- Keychain is temporary (RUNNER_TEMP) and deleted in always() cleanup step.
+- No secrets are logged (base64 decode goes directly to file).
+- Notarization credentials (APPLE_ID, APPLE_NOTARIZE_PASSWORD) passed via env vars from secrets.
+- No hardcoded credentials in the workflow file.
