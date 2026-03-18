@@ -28,28 +28,3 @@ protocol ProcessMonitoring: AnyObject {
     func pollOnce() -> Int
 }
 
-/// Protocol for token usage monitoring.
-/// Enables dependency injection and testability.
-protocol TokenMonitoring: AnyObject {
-    /// Read aggregate token usage from local Claude Code files.
-    /// - Returns: A `TokenUsage` value, or `nil` if data is unavailable.
-    func readUsage() -> TokenUsage?
-
-    /// Read per-session token usage data.
-    /// - Returns: An array of per-session usage, or empty if unavailable.
-    func readPerSessionUsage() -> [SessionTokenUsage]
-}
-
-/// Aggregate token usage across all Claude Code sessions.
-struct TokenUsage: Equatable, Sendable {
-    let context: Int
-    let input: Int
-    let output: Int
-}
-
-/// Per-session token usage with identifying label.
-struct SessionTokenUsage: Equatable, Sendable, Identifiable {
-    let id: String
-    let label: String
-    let usage: TokenUsage
-}

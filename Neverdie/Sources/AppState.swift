@@ -18,7 +18,7 @@ enum NeverdieError: Equatable, Sendable {
 /// Central state management for the Neverdie app.
 ///
 /// AppState is the single source of truth for all UI and service state.
-/// It coordinates SleepManager, ProcessMonitor, and TokenMonitor via
+/// It coordinates SleepManager and ProcessMonitor via
 /// protocol-based dependency injection.
 ///
 /// ## State Machine
@@ -38,12 +38,6 @@ final class AppState {
     /// Number of currently detected Claude Code processes.
     private(set) var processCount: Int = 0
 
-    /// Aggregate token usage from Claude Code sessions.
-    private(set) var tokenUsage: TokenUsage? = nil
-
-    /// Per-session token usage data.
-    private(set) var sessionUsages: [SessionTokenUsage] = []
-
     /// Whether Claude Code processes have ever been detected during this activation cycle.
     private(set) var claudeProcessesEverDetected: Bool = false
 
@@ -54,7 +48,6 @@ final class AppState {
 
     private let sleepManager: SleepManaging?
     private let processMonitor: ProcessMonitoring?
-    private let tokenMonitor: TokenMonitoring?
 
     // MARK: - Internal State
 
@@ -71,15 +64,12 @@ final class AppState {
     /// - Parameters:
     ///   - sleepManager: Sleep prevention manager. Pass `nil` for testing without IOKit.
     ///   - processMonitor: Process detection monitor. Pass `nil` for testing.
-    ///   - tokenMonitor: Token usage reader. Pass `nil` for testing.
     init(
         sleepManager: SleepManaging? = nil,
-        processMonitor: ProcessMonitoring? = nil,
-        tokenMonitor: TokenMonitoring? = nil
+        processMonitor: ProcessMonitoring? = nil
     ) {
         self.sleepManager = sleepManager
         self.processMonitor = processMonitor
-        self.tokenMonitor = tokenMonitor
     }
 
     // MARK: - Toggle
@@ -175,12 +165,6 @@ final class AppState {
         Logger.lifecycle.debug("Monitoring stopped")
     }
 
-    /// Refresh token usage data on demand.
-    func refreshTokenUsage() {
-        tokenUsage = tokenMonitor?.readUsage()
-        sessionUsages = tokenMonitor?.readPerSessionUsage() ?? []
-    }
-
     // MARK: - Cleanup
 
     /// Perform full cleanup before app termination.
@@ -194,8 +178,6 @@ final class AppState {
         isActive = false
         processCount = 0
         claudeProcessesEverDetected = false
-        tokenUsage = nil
-        sessionUsages = []
         lastError = nil
         stopMonitoring()
         Logger.lifecycle.info("Cleanup complete")
