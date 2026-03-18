@@ -1,26 +1,23 @@
-# Review Notes: ISSUE-009 -- AnimationManager with Frame Cycling
+# Review Notes: ISSUE-015 -- Token Usage Bar Graphs
 
 ## Code Review
 
 ### Findings
-- **Correctness**: AnimationManager correctly pre-loads frames, cycles at 6fps, and handles transitions. The frame advance logic properly handles transition-to-loop handoff.
-- **Edge Cases**: Empty frame arrays are handled (guard checks). Fallback icon used when assets missing.
-- **Reduced Motion**: Properly checks `NSWorkspace.shared.accessibilityDisplayShouldReduceMotion` and observes changes via notification.
-- **Timer Management**: Timer is invalidated on stop and in deinit, preventing leaks.
-- **Memory**: Pre-loaded NSImage arrays are small (~40KB total for 8 frames at 18x18 @2x).
-- **Thread Safety**: Timer fires on main thread (scheduledTimer default). Frame updates happen on main.
+- **Correctness**: TokenBarView correctly computes fill proportion. Division by zero prevented with max(..., 1).
+- **Number Formatting**: TokenFormatter handles all ranges: <1000 exact, 1K-999K, 1M+. Trailing ".0" removed for clean display.
+- **Clean Separation**: TokenFormatter as enum with static method is testable and reusable.
+- **PopoverManager Integration**: Token data refreshed before creating PopoverView, ensuring fresh data.
+- **Memory**: Views are value types (struct), no retain cycles.
 
 ### Changes Made
 None required.
 
 ### Follow-ups
-- ISSUE-010 will wire AnimationManager to StatusBarController.
+- ISSUE-023 will add per-session token breakdown with collapsible sections.
 
 ## Security Findings
 
 ### Severity: None
-- No external input processed.
-- No network calls.
-- No file system writes.
-- All data comes from bundled asset catalog (read-only).
-- No injection risks.
+- No external input processed in UI layer.
+- Token data comes from AppState (already validated by TokenMonitor).
+- No injection risks in SwiftUI views.
