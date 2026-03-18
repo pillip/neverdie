@@ -1,33 +1,27 @@
-# Review Notes: ISSUE-021 -- CI/CD Pipeline with GitHub Actions
+# Review Notes: ISSUE-022 -- Homebrew Cask Formula
 
 ## Code Review
 
 ### Findings
-- **Xcode version**: Hardcoded Xcode_15.2.app path replaced with dynamic detection of latest Xcode 15.x on the runner.
-- **xcpretty availability**: Added explicit installation step; build commands now fall back to raw xcodebuild output if xcpretty piping fails.
-- **ExportOptions.plist**: Heredoc generates valid plist content. Added mkdir -p build to ensure directory exists.
-- **create-dmg exit code**: create-dmg returns exit code 2 on "success with warnings" (e.g., missing background image). Updated to treat exit codes 0 and 2 as success, only falling back to hdiutil for actual failures.
-- **Removed --volicon flag**: The app may not have AppIcon.icns in the expected path; removed to avoid unnecessary failures.
-- **set -o pipefail**: Added to xcodebuild piped commands to properly catch build failures hidden by xcpretty.
-- **DMG verification**: Added ls -lh to confirm DMG was created.
+- **Ruby syntax**: Validated via `ruby -c`, syntax is correct.
+- **Cask structure**: Follows standard Homebrew Cask conventions (version, sha256, url, name, desc, homepage, depends_on, app, caveats, zap).
+- **URL interpolation**: Uses `#{version}` in URL template, which auto-updates when version field is changed.
+- **SHA256**: Set to `:no_check` as placeholder until first release. This is standard practice for initial formula creation.
+- **macOS dependency**: Correctly requires Sonoma (14.0+) matching the app's deployment target.
+- **Zap stanza**: Includes cleanup for Caches and Preferences directories matching the bundle ID.
+- **Caveats**: Clear usage instructions for menu bar app interaction.
 
 ### Changes Made
-1. Dynamic Xcode 15.x selection instead of hardcoded path.
-2. Added xcpretty install step with graceful fallback.
-3. Added `set -o pipefail` and retry-without-xcpretty pattern for builds.
-4. Fixed create-dmg exit code handling (0 and 2 are success).
-5. Added `mkdir -p build` before ExportOptions.plist creation.
-6. Removed `--volicon` flag from create-dmg (may not exist).
+None required.
 
 ### Follow-ups
-- The heredoc plist will have leading whitespace from YAML indentation; xcodebuild tolerates this but a future cleanup could use a dedicated plist file in the repo.
-- Consider caching brew dependencies (create-dmg) for faster CI runs.
+- After first release: update SHA256 from `:no_check` to actual hash from release notes.
+- Set up homebrew-neverdie tap repo for custom tap distribution.
+- Consider submitting to homebrew/homebrew-cask for wider distribution later.
 
 ## Security Findings
 
 ### Severity: None
-- Signing certificate handled via GitHub Secrets (APPLE_CERTIFICATE_BASE64), decoded only at runtime.
-- Keychain is temporary (RUNNER_TEMP) and deleted in always() cleanup step.
-- No secrets are logged (base64 decode goes directly to file).
-- Notarization credentials (APPLE_ID, APPLE_NOTARIZE_PASSWORD) passed via env vars from secrets.
-- No hardcoded credentials in the workflow file.
+- Formula downloads from GitHub Releases (HTTPS).
+- No scripts or post-install hooks that could execute arbitrary code.
+- SHA256 verification will be enforced after first release.
