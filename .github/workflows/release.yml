@@ -120,21 +120,12 @@ jobs:
       - name: Create export options plist
         run: |
           mkdir -p build
-          cat > build/ExportOptions.plist <<'PLIST'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>method</key>
-  <string>developer-id</string>
-  <key>teamID</key>
-  <string>JZ8Y9WP6RC</string>
-  <key>signingStyle</key>
-  <string>automatic</string>
-</dict>
-</plist>
-PLIST
+          /usr/libexec/PlistBuddy -c "Clear dict" build/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :method string developer-id" build/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :teamID string $TEAM_ID" build/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :signingStyle string automatic" build/ExportOptions.plist
+          echo "--- ExportOptions.plist ---"
+          cat build/ExportOptions.plist
 
       - name: Export archive
         run: |
