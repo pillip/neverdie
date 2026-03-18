@@ -57,7 +57,7 @@ final class AnimationManager {
     private var frameIndex: Int = 0
 
     /// Whether a transition is currently playing.
-    private var isPlayingTransition: Bool = false
+    private(set) var isPlayingTransition: Bool = false
 
     /// Frames currently being played (transition or loop).
     private var activeFrames: [NSImage] = []

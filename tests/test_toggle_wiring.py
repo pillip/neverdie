@@ -34,11 +34,13 @@ def test_left_click_toggle_wired():
 
 
 def test_icon_switching():
-    """Icon switches between OFF and ON states."""
+    """Icon switches between OFF and ON states via AnimationManager."""
     content = (SOURCES / "StatusBarController.swift").read_text()
-    assert "offIcon" in content, "Must have OFF icon"
-    assert "onIcon" in content, "Must have ON icon"
-    assert "ZombieSleep" in content, "OFF icon should be ZombieSleep"
+    assert "staticOffIcon" in content or "animationManager" in content, (
+        "Must reference OFF icon via AnimationManager"
+    )
+    assert "currentFrame" in content, "Must use currentFrame for ON icon"
+    assert "updateIcon" in content, "Must have updateIcon method"
 
 
 def test_voiceover_announcement():
