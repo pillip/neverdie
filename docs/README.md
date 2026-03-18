@@ -1,73 +1,59 @@
 # Neverdie
 
-> macOS 메뉴바 앱 -- Claude Code가 잠들지 않게 지켜주는 좀비
+> macOS 메뉴바 앱 -- 총맞아도 안 죽는 좀비가 맥북 sleep을 막아줍니다.
 
-## Prerequisites
+Neverdie는 macOS 시스템 sleep을 방지하는 가벼운 메뉴바 유틸리티입니다. Claude Code 같은 AI 코딩 도구가 장시간 작업 중일 때 노트북이 잠들어 작업이 중단되는 문제를 해결합니다.
+
+## Features
+
+- **Sleep 방지** -- IOPMAssertion API로 시스템 sleep을 차단 (디스플레이는 꺼짐)
+- **원클릭 토글** -- 메뉴바 아이콘 클릭으로 ON/OFF
+- **Launch at Login** -- 로그인 시 자동 실행
+- **좀비 애니메이션** -- ON: 총알 맞아도 살아나는 좀비 / OFF: 잠자는 좀비 (Zzz)
+
+## Install
+
+### Homebrew Cask
+```bash
+brew install --cask neverdie
+```
+
+### 직접 빌드
+```bash
+git clone https://github.com/pillip/neverdie.git
+cd neverdie
+open Neverdie/Neverdie.xcodeproj
+# Xcode에서 Cmd+R로 실행
+```
+
+## Requirements
 
 - macOS 14.0 (Sonoma) 이상
-- Xcode 15+ (빌드용)
-- Apple Developer ID 인증서 (배포용, 선택)
+- Xcode 15+ (빌드 시)
 
-## Setup
+## How It Works
 
-```bash
-# 1. 저장소 클론
-git clone https://github.com/<your-org>/neverdie.git
-cd neverdie
+1. 메뉴바에 좀비 아이콘이 나타남
+2. 클릭하면 팝오버: ON/OFF 토글, Launch at Login, Quit
+3. ON 상태에서는 `IOPMAssertionCreateWithName`으로 시스템 sleep 차단
+4. 디스플레이는 꺼지지만 CPU는 계속 동작
 
-# 2. Xcode 프로젝트 열기
-open Neverdie.xcodeproj
-
-# 3. 빌드 (Universal Binary)
-xcodebuild build -scheme Neverdie -destination 'platform=macOS'
-
-# 4. 실행
-# Xcode에서 Run (Cmd+R) 또는 빌드된 .app 직접 실행
-```
+> **참고**: 노트북 뚜껑을 닫으면 하드웨어 레벨에서 sleep이 강제되므로 소프트웨어로 막을 수 없습니다. 뚜껑은 열어두세요.
 
 ## Architecture
 
-- **언어**: Swift 5.9+
-- **UI**: SwiftUI (MenuBarExtra) + AppKit (NSStatusItem)
-- **패턴**: MVVM (`@Observable` AppState)
-- **외부 의존성**: 없음 (Apple 프레임워크만 사용)
-
-### 모듈 구성
-
 | 모듈 | 역할 |
 |------|------|
-| AppState | 중앙 상태 관리 (ViewModel) |
+| AppState | 중앙 상태 관리 (`@Observable`) |
 | SleepManager | IOPMAssertion 기반 sleep 방지 |
-| ProcessMonitor | libproc 기반 Claude Code 프로세스 감지 |
-| TokenMonitor | ~/.claude/ 로컬 파일 파싱 |
 | AnimationManager | 프레임 기반 메뉴바 아이콘 애니메이션 |
+| StatusBarController | NSStatusItem + NSPopover 관리 |
+| ControlPopoverView | SwiftUI 팝오버 UI |
 
-## Test
+- **언어**: Swift 5.9+
+- **UI**: SwiftUI + AppKit
+- **외부 의존성**: 없음
 
-```bash
-# 단위 테스트 실행
-xcodebuild test -scheme Neverdie -destination 'platform=macOS'
-```
+## License
 
-## Distribution
-
-- **Homebrew Cask**: `brew install --cask neverdie`
-- **App Store**: (심사 후 배포 예정)
-- **직접 다운로드**: GitHub Releases에서 `.dmg` 다운로드
-
-## Project Structure
-
-```
-neverdie/
-  PRD.md                    # 제품 요구사항 정의서
-  issues.md                 # 구현 이슈 목록
-  STATUS.md                 # 프로젝트 현재 상태
-  docs/
-    requirements.md         # 상세 요구사항
-    ux_spec.md              # UX 사양서
-    architecture.md         # 아키텍처 설계
-    data_model.md           # 데이터 모델
-    test_plan.md            # 테스트 전략
-    brainstorm_notes.md     # 브레인스톰 노트
-    prd_digest.md           # PRD 요약
-```
+MIT
