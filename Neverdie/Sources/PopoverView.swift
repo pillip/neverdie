@@ -2,32 +2,42 @@ import SwiftUI
 
 /// SwiftUI view displayed inside the hover popover.
 ///
-/// Shows process count and token usage bar graphs.
+/// Shows process count, aggregate token usage, and per-session breakdown.
 /// When token data is unavailable, displays "Token data unavailable".
 struct PopoverView: View {
     let processCount: Int
     let tokenUsage: TokenUsage?
+    let sessionUsages: [SessionTokenUsage]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(sessionText)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.primary)
-                .accessibilityLabel(sessionText)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(sessionText)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.primary)
+                    .accessibilityLabel(sessionText)
 
-            Divider()
+                Divider()
 
-            if let usage = tokenUsage {
-                TokenBarsSection(usage: usage)
-            } else {
-                Text("Token data unavailable")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .accessibilityLabel("Token data unavailable")
+                if let usage = tokenUsage {
+                    if sessionUsages.count > 1 {
+                        // Per-session breakdown
+                        PerSessionTokenView(sessions: sessionUsages)
+                    } else {
+                        // Single aggregate view
+                        TokenBarsSection(usage: usage)
+                    }
+                } else {
+                    Text("Token data unavailable")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .accessibilityLabel("Token data unavailable")
+                }
             }
+            .padding(12)
         }
-        .padding(12)
         .frame(width: 240)
+        .frame(maxHeight: 400)
     }
 
     /// Formatted text for process count display.
@@ -39,6 +49,39 @@ struct PopoverView: View {
             return "1 active session"
         default:
             return "\(processCount) active sessions"
+        }
+    }
+}
+
+/// Per-session token breakdown with collapsible sections.
+struct PerSessionTokenView: View {
+    let sessions: [SessionTokenUsage]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(Array(sessions.enumerated()), id: \.element.id) { index, session in
+                DisclosureGroup(
+                    isExpanded: .constant(index == 0),
+                    content: {
+                        TokenBarsSection(usage: session.usage)
+                            .padding(.leading, 4)
+                            .padding(.top, 2)
+                    },
+                    label: {
+                        Text(session.label)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                )
+                .accessibilityLabel("Session: \(session.label)")
+
+                if index < sessions.count - 1 {
+                    Divider()
+                        .padding(.vertical, 2)
+                }
+            }
         }
     }
 }
