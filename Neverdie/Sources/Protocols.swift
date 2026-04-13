@@ -13,3 +13,23 @@ protocol SleepManaging: AnyObject {
     /// Whether a sleep prevention assertion is currently held.
     var isAssertionHeld: Bool { get }
 }
+
+/// Power source state.
+enum PowerSource: Equatable, Sendable {
+    case ac
+    case battery
+}
+
+/// Protocol for observing MacBook lid open/close state.
+protocol ClamshellObserving: AnyObject {
+    var isLidClosed: Bool { get }
+    func start(onChange: @escaping (Bool) -> Void)
+    func stop()
+}
+
+/// Protocol for observing AC vs battery power transitions.
+protocol PowerSourceMonitoring: AnyObject {
+    var currentSource: PowerSource { get }
+    func start(onChange: @escaping (PowerSource) -> Void)
+    func stop()
+}

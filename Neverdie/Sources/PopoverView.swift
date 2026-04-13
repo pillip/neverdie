@@ -6,6 +6,7 @@ import SwiftUI
 /// Apple-style minimal design with toggle, launch at login, and quit.
 struct ControlPopoverView: View {
     let isActive: Bool
+    let isPaused: Bool
     let hasError: Bool
     let onToggle: () -> Void
     let onQuit: () -> Void
@@ -22,7 +23,7 @@ struct ControlPopoverView: View {
                 Text("Neverdie")
                     .font(.system(size: 13))
                 Spacer()
-                Text(isActive ? "ON" : "OFF")
+                Text(statusLabel)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.secondary)
             }
@@ -63,8 +64,14 @@ struct ControlPopoverView: View {
             }
     }
 
+    private var statusLabel: String {
+        if isPaused { return "Paused" }
+        return isActive ? "ON" : "OFF"
+    }
+
     private var statusDotColor: Color {
         if hasError { return .red }
+        if isPaused { return .orange }
         return isActive ? .green : .secondary.opacity(0.5)
     }
 

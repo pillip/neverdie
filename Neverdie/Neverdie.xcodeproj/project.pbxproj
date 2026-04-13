@@ -22,6 +22,9 @@
 		A1000F /* AnimationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20012 /* AnimationManager.swift */; };
 		A10010 /* NeverdieTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20010 /* NeverdieTests.swift */; };
 		A10011 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = A20013 /* Localizable.strings */; };
+		A10012 /* ClamshellObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20015 /* ClamshellObserver.swift */; };
+		A10013 /* PowerSourceMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20016 /* PowerSourceMonitor.swift */; };
+		A10014 /* ClamshellBatteryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20017 /* ClamshellBatteryTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -54,6 +57,9 @@
 		A20011 /* NeverdieTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = NeverdieTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A20012 /* AnimationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimationManager.swift; sourceTree = "<group>"; };
 		A20014 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
+		A20015 /* ClamshellObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClamshellObserver.swift; sourceTree = "<group>"; };
+		A20016 /* PowerSourceMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerSourceMonitor.swift; sourceTree = "<group>"; };
+		A20017 /* ClamshellBatteryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClamshellBatteryTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -99,6 +105,8 @@
 				A2000E /* PopoverView.swift */,
 				A2000F /* PopoverManager.swift */,
 				A20012 /* AnimationManager.swift */,
+				A20015 /* ClamshellObserver.swift */,
+				A20016 /* PowerSourceMonitor.swift */,
 			);
 			path = Sources;
 			sourceTree = "<group>";
@@ -126,6 +134,7 @@
 			isa = PBXGroup;
 			children = (
 				A20010 /* NeverdieTests.swift */,
+				A20017 /* ClamshellBatteryTests.swift */,
 				A20006 /* Neverdie.entitlements */,
 			);
 			name = NeverdieTests;
@@ -236,6 +245,8 @@
 				A1000D /* PopoverView.swift in Sources */,
 				A1000E /* PopoverManager.swift in Sources */,
 				A1000F /* AnimationManager.swift in Sources */,
+				A10012 /* ClamshellObserver.swift in Sources */,
+				A10013 /* PowerSourceMonitor.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -244,6 +255,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A10010 /* NeverdieTests.swift in Sources */,
+				A10014 /* ClamshellBatteryTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -389,6 +401,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = JZ8Y9WP6RC;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0;
@@ -406,6 +419,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = JZ8Y9WP6RC;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0;

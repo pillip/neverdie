@@ -1,3 +1,6 @@
 [submodule ".claude-kit"]
 	path = .claude-kit
 	url = git@github.com:pillip/claude-dev-kit.git
+[submodule "marketing-kit"]
+	path = marketing-kit
+	url = git@github.com-pillip:pillip/claude-marketing-kit.git

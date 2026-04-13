@@ -6,10 +6,12 @@
 "status.sleep_prevention_on" = "Neverdie -- sleep prevention ON";
 "status.sleep_prevention_off" = "Neverdie -- sleep prevention OFF";
 "status.error" = "Neverdie error";
+"status.paused" = "Neverdie -- paused, waiting for lid open or AC power";
 
 /* VoiceOver Announcements */
 "announce.on" = "Neverdie ON";
 "announce.off" = "Neverdie OFF";
+"announce.paused" = "Neverdie paused -- lid closed on battery";
 "announce.error" = "Neverdie error: could not prevent sleep";
 "announce.auto_off" = "Neverdie OFF -- all sessions ended";
 
@@ -17,6 +19,7 @@
 "menu.status_on" = "Neverdie: ON";
 "menu.status_off" = "Neverdie: OFF";
 "menu.status_error" = "Neverdie: Error -- could not prevent sleep";
+"menu.status_paused" = "Neverdie: Paused (lid closed on battery)";
 "menu.quit" = "Quit Neverdie";
 "menu.launch_at_login" = "Launch at Login";
 
