@@ -1037,6 +1037,165 @@ Revert per-session UI. Aggregate token view remains.
 
 ---
 
+### ISSUE-024: Release sleep assertion on clamshell close when on battery power
+- Track: product
+- UI: false
+- Manual: false
+- PRD-Ref: FR-019, NFR-005
+- Priority: P0
+- Estimate: 1.5d
+- Status: done
+- Owner:
+- Branch: issue/ISSUE-024-clamshell-battery-handling
+- GH-Issue: https://github.com/pillip/neverdie/issues/45
+- PR: https://github.com/pillip/neverdie/pull/46
+- Depends-On: ISSUE-002, ISSUE-003
+
+#### Goal
+On battery power, Neverdie must release its `IOPMAssertionTypePreventUserIdleSystemSleep` assertion whenever the MacBook lid is closed, so macOS can enter clamshell sleep and stop draining the battery. On AC power, existing behavior is preserved (assertion held, clamshell with external display keeps working). The user's intent (`AppState.isActive == true`) is never lost -- the assertion is automatically re-acquired on lid open, or when AC power is reconnected while the lid is still closed.
+
+#### Scope (In/Out)
+- In: New `ClamshellObserver` module wrapping `IOServiceAddInterestNotification` on `IOPMrootDomain` / `AppleClamshellState`; new `PowerSourceMonitor` module wrapping `IOPSNotificationCreateRunLoopSource`; AppState substate (e.g., `isPausedDueToClamshell`) that keeps `isActive == true` while the assertion is released; coordination logic that suspends/resumes the assertion on every (lid x power-source) transition; wiring from `NeverdieApp` AppDelegate; unit tests with protocol-based fakes; manual verification matrix; VoiceOver announcement for the paused substate.
+- Out: Any attempt to KEEP the system awake while the lid is closed on battery (that remains explicitly out of scope per PRD "Clamshell mode" exclusion); new UI affordances beyond the existing status line + VoiceOver; user-configurable overrides; power-source-aware behavior for features other than sleep assertion (animation, polling, token reads).
+
+#### Acceptance Criteria (DoD)
+- [ ] Given `isActive == true` and power source is battery, when the lid closes, then `SleepManager.allowSleep()` is called, the IOPMAssertion is released (verifiable via `pmset -g assertions`), and `AppState.isActive` remains `true` with the `isPausedDueToClamshell` substate set
+- [ ] Given `isActive == true` and the assertion is suspended due to clamshell, when the lid opens, then `SleepManager.preventSleep()` is called, the assertion is re-acquired, and `isPausedDueToClamshell` is cleared
+- [ ] Given `isActive == true` and power source is AC, when the lid closes, then the assertion is NOT released and clamshell + external display workflow continues to work as before
+- [ ] Given `isActive == true`, assertion suspended due to clamshell, and the lid is still closed, when the power source switches from battery to AC, then the assertion is re-acquired and `isPausedDueToClamshell` is cleared
+- [ ] Given `isActive == true` and the lid is closed on AC (assertion held), when the power source switches from AC to battery, then the assertion is released and `isPausedDueToClamshell` is set
+- [ ] Given `isActive == false`, when either the lid state or the power source changes, then no assertion changes occur (observers are strict no-ops while inactive)
+- [ ] Given the assertion is suspended due to clamshell, when the user manually toggles OFF from the dropdown menu, then the suspended substate is cleared and `AppState` transitions to a fully-OFF state with no assertion held
+- [ ] Given the assertion is suspended due to clamshell, when the app terminates (quit, SIGTERM, `applicationWillTerminate`), then `cleanup()` unregisters both observers and no IOKit notification ports are leaked
+- [ ] Given VoiceOver is focused on the menu bar icon while `isPausedDueToClamshell` is true, when it announces state, then it reads "Neverdie -- paused, waiting for lid open or AC power" (not "ON" or "OFF")
+- [ ] Given the dropdown menu is opened while in the paused substate, when the status line is read, then it shows "Neverdie: Paused (lid closed on battery)"
+
+#### Implementation Notes
+- **New file**: `Neverdie/Sources/ClamshellObserver.swift`. Use `IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOPMrootDomain"))` to obtain the root domain service, then `IOServiceAddInterestNotification` on `kIOGeneralInterest` with a callback that reads the `kAppleClamshellStateKey` property via `IORegistryEntryCreateCFProperty`. Deliver state changes on the main run loop via `IONotificationPortGetRunLoopSource`. Expose a `ClamshellObserving` protocol returning a callback `isLidClosed: Bool` so AppState can be unit tested against a fake.
+- **New file**: `Neverdie/Sources/PowerSourceMonitor.swift`. Use `IOPSNotificationCreateRunLoopSource` with a `IOPowerSourceCallbackType` callback. On each callback, read `IOPSCopyPowerSourcesInfo` + `IOPSCopyPowerSourcesList`, inspect `kIOPSPowerSourceStateKey` to distinguish `kIOPSACPowerValue` vs `kIOPSBatteryPowerValue`. Deliver a `PowerSource` enum (`.ac`, `.battery`) via a `PowerSourceMonitoring` protocol. Initial value read synchronously at `start()` so AppState is never in an "unknown" state.
+- **Modify**: `Neverdie/Sources/AppState.swift`. Add a private `isPausedDueToClamshell: Bool` substate (exposed read-only). Add injected dependencies on `ClamshellObserving` and `PowerSourceMonitoring` (protocol-based, default-constructed in production, fakes in tests). Implement a central `reconcileAssertion()` that is the ONLY place assertion state is changed when clamshell/power-source events arrive; it reads `(isActive, isLidClosed, powerSource)` and decides whether the assertion should be held or released. `toggle()` and the existing auto-OFF path both call through `reconcileAssertion()` so there is a single source of truth. When transitioning to `isActive == false`, make sure `isPausedDueToClamshell` is explicitly cleared.
+- **Modify**: `Neverdie/Sources/SleepManager.swift`. No logic change required -- `preventSleep()` / `allowSleep()` are already idempotent (per ISSUE-003 TC-004 and TC-006). Add an integration check that calling `allowSleep()` while already released is a no-op (it already is). Log every suspend/resume at `.info` with category `"sleep"` including the `(lid, power)` reason.
+- **Modify**: `Neverdie/Sources/NeverdieApp.swift`. In the AppDelegate / `@main` entry point, construct `ClamshellObserver` and `PowerSourceMonitor`, inject them into `AppState`, start them after the status item is installed, and ensure both are stopped in `applicationWillTerminate` before `SleepManager.allowSleep()` runs. Observers must be started even when `isActive == false` -- they are cheap and we must not miss the first event.
+- **Modify**: `NeverdieTests/NeverdieTests.swift`. Add `FakeClamshellObserver` and `FakePowerSourceMonitor` conforming to the new protocols. Exercise the full 2x2x2 state matrix (`isActive` x `isLidClosed` x `powerSource`) plus the edge transitions. Use a `SleepManagingSpy` to record `preventSleep()` / `allowSleep()` calls and assert the expected sequence for each transition.
+- **IOKit references**: `IOKit.pwr_mgt` is already linked via ISSUE-003. `IOKit.ps` (power sources) needs to be imported in `PowerSourceMonitor.swift`. Both APIs are available on macOS 14+.
+- **Gotcha**: `IOServiceAddInterestNotification` requires an `IONotificationPort` whose run loop source must be explicitly added to the current run loop. Forgetting this results in callbacks never firing. Mirror the pattern in `SignalHandler.swift` for lifecycle management (`deinit` releases the notification port via `IONotificationPortDestroy`).
+- **Gotcha**: Reading `AppleClamshellState` can briefly return `nil` during state transitions. Treat `nil` as "unchanged" and rely on the next callback rather than assuming `false`.
+- **Gotcha**: `IOPSCopyPowerSourcesInfo` returns a `Unmanaged<CFTypeRef>` -- remember to `takeRetainedValue()` and release. A memory-leak regression here is invisible but will fail nightly leak checks.
+- **Thread safety**: Both observer callbacks must marshal to the main actor before touching `AppState`. Use `DispatchQueue.main.async` from inside the C callback trampolines.
+- **Out-of-scope stance**: We are NOT claiming clamshell support. We are respecting the user's environment so that battery is not drained while the machine is in a state where keep-awake is impossible anyway. Document this explicitly in `docs/requirements.md` Out of Scope clarification.
+
+#### Tests
+- [ ] Unit test: `FakeClamshellObserver.simulateClose()` while `isActive == true` and power source is battery -> `SleepManagingSpy.allowSleepCallCount == 1`, `isActive == true`, `isPausedDueToClamshell == true`
+- [ ] Unit test: subsequent `FakeClamshellObserver.simulateOpen()` -> `SleepManagingSpy.preventSleepCallCount == 2` (initial ON + resume), `isPausedDueToClamshell == false`
+- [ ] Unit test: `FakeClamshellObserver.simulateClose()` while power source is AC -> no call to `allowSleep()`, assertion still held, `isPausedDueToClamshell == false`
+- [ ] Unit test: lid closed + battery (paused) then `FakePowerSourceMonitor.simulateTransition(.ac)` -> `preventSleep()` called, paused substate cleared
+- [ ] Unit test: lid closed + AC (assertion held) then `FakePowerSourceMonitor.simulateTransition(.battery)` -> `allowSleep()` called, paused substate set
+- [ ] Unit test: `isActive == false` and any combination of lid/power events -> zero calls to either `preventSleep()` or `allowSleep()`
+- [ ] Unit test: `AppState.toggle()` to OFF while `isPausedDueToClamshell == true` -> paused substate cleared, `isActive == false`, no spurious `allowSleep()` error
+- [ ] Unit test: `AppState.cleanup()` while paused -> observers stopped, `allowSleep()` safe no-op
+- [ ] Unit test: `ClamshellObserver` calls its registered callback on a simulated `IOServiceInterestCallback` (via protocol injection of a fake IOKit notification source)
+- [ ] Unit test: `PowerSourceMonitor` reports the correct initial power source on `start()` (mock `IOPSCopyPowerSourcesList` behind a protocol)
+- [ ] Manual test (MacBook on battery): activate Neverdie -> close lid -> `pmset -g assertions | grep Neverdie` returns empty, system enters sleep within ~30s -> reopen lid -> wake -> `pmset -g assertions | grep Neverdie` shows the assertion again
+- [ ] Manual test (MacBook on AC + external display): activate Neverdie -> close lid -> `pmset -g assertions | grep Neverdie` still shows assertion, external display drives the session normally
+- [ ] Manual test (transition): on battery with lid closed (paused) -> plug in MagSafe/USB-C -> verify assertion re-appears in `pmset -g assertions` without opening the lid
+- [ ] Manual test (transition): on AC with lid closed (assertion held) -> unplug -> verify assertion disappears from `pmset -g assertions` within one observer cycle
+- [ ] Leak test: run with `leaks` or Instruments Leaks template through 50 lid-open/close cycles and 50 AC/battery transitions; no growth in IOKit notification ports
+
+#### Rollback
+Revert `ClamshellObserver.swift`, `PowerSourceMonitor.swift`, and the `AppState` / `NeverdieApp` diffs. `SleepManager.swift` is untouched by this issue so no rollback is needed there. Post-rollback, the app returns to the prior behavior: assertion is held regardless of lid/power (the original battery-drain bug). Document this as a known regression in the rollback PR so the fix can be re-applied.
+
+---
+
+### ISSUE-025: Wire StatusBarController to reactively update icon and accessibility for isPausedDueToClamshell
+- Track: product
+- UI: true
+- Manual: false
+- PRD-Ref: FR-019, NFR-007
+- Priority: P1
+- Estimate: 0.5d
+- Status: done
+- Owner:
+- Branch: issue/ISSUE-025-statusbar-reactive
+- GH-Issue: https://github.com/pillip/neverdie/issues/47
+- PR: https://github.com/pillip/neverdie/pull/49
+- Depends-On: ISSUE-024
+
+#### Goal
+When `isPausedDueToClamshell` transitions via IOKit callbacks (lid close/open, power source change), the `StatusBarController` reactively updates the menu bar icon (dim to 50% opacity, show OFF/sleeping zombie frame) and fires VoiceOver announcements automatically -- without requiring the user to open the popover or toggle manually. This addresses RL-001 (reactive UI not wired to new state properties).
+
+#### Scope (In/Out)
+- In: StatusBarController reactive observation of `isPausedDueToClamshell` changes, icon opacity dimming to 50% on pause, animation stop/resume on pause/resume transitions, VoiceOver `announceStateChange()` calls on automatic transitions, unit test with mock AppState
+- Out: New UI elements, new modules, changes to AppState or ClamshellObserver/PowerSourceMonitor, changes to the popover (it already reads the property correctly)
+
+#### Acceptance Criteria (DoD)
+- [ ] Given `isPausedDueToClamshell` transitions from false to true (via IOKit callback), when StatusBarController observes this change, then the animation stops, the OFF (sleeping zombie) icon is shown at 50% opacity, and VoiceOver announces "Neverdie paused -- lid closed on battery"
+- [ ] Given `isPausedDueToClamshell` transitions from true to false while `isActive` is true, when StatusBarController observes this change, then the animation resumes, opacity returns to 100%, and VoiceOver announces "Neverdie resumed"
+- [ ] Given the app is in the paused state, when the dropdown menu is opened, then the status line reads "Neverdie: Paused (lid closed on battery)" (verify the reactive path matches the existing popover path)
+- [ ] Given a mock AppState with `isPausedDueToClamshell` toggled programmatically, when the observation fires, then the icon update callback is invoked with the correct parameters
+
+#### Implementation Notes
+- **Modify**: `Neverdie/Sources/StatusBarController.swift`. Add an observation mechanism (Combine publisher on `AppState.isPausedDueToClamshell`, or `withObservationTracking` if using `@Observable`) to detect `isPausedDueToClamshell` changes and call an `applyPausedState()` method.
+- When entering paused state: call `animationManager.stopAnimation()`, set button image to `staticOffIcon`, set `button.alphaValue = 0.5`, call `updateAccessibility()` and `announceStateChange()`.
+- When exiting paused state (and `isActive` is true): call `animationManager.startAnimation()`, `startFrameObserver()`, set `button.alphaValue = 1.0`, call `updateAccessibility()` and `announceStateChange()`.
+- The existing `updateAccessibility()` (line ~244) and `announceStateChange()` (line ~258) already handle the paused state labels (added in ISSUE-024). This issue only adds the *trigger* -- the reactive observation that calls these methods when the state changes outside of user-initiated actions.
+- Reference RL-001 in `docs/review_lessons.md` -- this issue directly implements the prevention strategy described there.
+
+#### Tests
+- [ ] Unit test: mock AppState `isPausedDueToClamshell` change from false to true triggers icon update (animation stopped, opacity 0.5, accessibility updated)
+- [ ] Unit test: mock AppState `isPausedDueToClamshell` change from true to false with `isActive == true` triggers animation resume (opacity 1.0, accessibility updated)
+- [ ] Unit test: mock AppState `isPausedDueToClamshell` change from true to false with `isActive == false` does not start animation (stays at static OFF, opacity 1.0)
+- [ ] Manual test: close MacBook lid on battery -> verify icon dims in menu bar on external display (if available) or after reopening
+
+#### Rollback
+Revert the StatusBarController observation wiring. The icon and accessibility will continue to update on user-initiated actions (toggle, popover open) but not on automatic IOKit-driven transitions -- returning to the pre-fix behavior.
+
+---
+
+### ISSUE-026: Add rapid lid open/close idempotency stress test
+- Track: product
+- UI: false
+- Manual: false
+- PRD-Ref: FR-019
+- Priority: P2
+- Estimate: 0.5d
+- Status: done
+- Owner:
+- Branch: issue/ISSUE-026-stress-tests
+- GH-Issue: https://github.com/pillip/neverdie/issues/48
+- PR: https://github.com/pillip/neverdie/pull/50
+- Depends-On: ISSUE-024
+
+#### Goal
+Add unit tests that rapidly alternate lid open/close and AC/battery transitions (50+ cycles each) and verify that the final assertion state matches the expected state based on the last (lid, power) values. This guards against race conditions or state drift in the reconciliation logic when IOKit callbacks fire in rapid succession.
+
+#### Scope (In/Out)
+- In: New test cases in `NeverdieTests/ClamshellBatteryTests.swift` using existing `FakeClamshellObserver` and `FakePowerSourceMonitor` fakes; rapid-cycle lid tests, rapid-cycle power tests, interleaved lid+power tests, call-count balance assertion
+- Out: Changes to production code, new fakes, new test infrastructure
+
+#### Acceptance Criteria (DoD)
+- [ ] Given AppState is active, when 50 rapid lid open/close cycles are executed followed by a final close on battery, then `isPausedDueToClamshell` is true and assertion is released
+- [ ] Given AppState is active, when 50 rapid AC/battery transitions are executed with lid closed, then the final assertion state matches the last power source (AC = held, battery = released)
+- [ ] Given AppState is active, when interleaved lid and power events (100 total) are executed, then the final state is consistent with the last (lid, power) pair per the decision table
+- [ ] Given any rapid-cycle test completes, when `preventSleepCallCount - allowSleepCallCount` is checked, then the imbalance is 0 (final state released) or 1 (final state held) -- no leaked or double-released assertions
+
+#### Implementation Notes
+- **Modify**: `NeverdieTests/ClamshellBatteryTests.swift`. Add a new test class or extension with rapid-cycle test methods.
+- Use the existing `FakeClamshellObserver` and `FakePowerSourceMonitor` fakes and `SleepManagingSpy` from ISSUE-024.
+- Reference the state matrix from TC-110 through TC-125 in `docs/test_plan.md`. The rapid-cycle tests exercise the same decision table but verify idempotency across many transitions rather than single-step correctness.
+- This is the unit-test counterpart to TC-124 (which focuses on IOKit notification port memory leaks under Instruments). The unit test version focuses on state correctness and call-count balance.
+
+#### Tests
+- [ ] `testRapidLidCycles_finalClosedOnBattery_isPaused`: 50x open/close, final close on battery -> paused, assertion released
+- [ ] `testRapidPowerCycles_lidClosed_finalBattery_isPaused`: lid closed, 50x AC/battery, final battery -> paused, assertion released
+- [ ] `testRapidPowerCycles_lidClosed_finalAC_isHeld`: lid closed, 50x AC/battery, final AC -> not paused, assertion held
+- [ ] `testInterleavedLidAndPower_100events_finalStateConsistent`: 100 interleaved events, final state matches last (lid, power) pair
+- [ ] `testCallCountBalance_noLeakedAssertions`: after any rapid cycle, `preventSleepCallCount - allowSleepCallCount` is 0 or 1
+
+#### Rollback
+Delete the new test methods. No production code is affected.
+
+---
+
 ## Dependency Graph
 
 ```
@@ -1059,6 +1218,9 @@ ISSUE-001 (Scaffold)
                                                                    +-- ISSUE-019 (Accessibility)
 
 ISSUE-020 (Developer ID - Manual) -- ISSUE-021 (CI/CD) -- ISSUE-022 (Homebrew)
+
+ISSUE-024 (Clamshell battery) -- ISSUE-025 (StatusBar reactive update)
+                              +-- ISSUE-026 (Rapid-cycle stress test)
 ```
 
 ### Parallel Work Opportunities
@@ -1082,9 +1244,9 @@ ISSUE-001 -> ISSUE-002 + ISSUE-003 -> ISSUE-005 -> ISSUE-006 -> ISSUE-007 (Phase
 | Phase 2: Personality | ISSUE-008 through ISSUE-010 | 3d |
 | Phase 3: Intelligence | ISSUE-011, ISSUE-012 | 1.5d |
 | Phase 4: Monitoring | ISSUE-013 through ISSUE-016 | 4d |
-| Phase 4.5: Polish | ISSUE-017 through ISSUE-019 | 1.5d |
+| Phase 4.5: Polish | ISSUE-017 through ISSUE-019, ISSUE-024 through ISSUE-026 | 4d |
 | Phase 5: Distribution | ISSUE-020 through ISSUE-023 | 3.5d |
-| **Total** | **23 issues** | **18.5d** |
+| **Total** | **26 issues** | **21d** |
 
 ### FR/US Coverage Traceability
 
@@ -1117,5 +1279,7 @@ ISSUE-001 -> ISSUE-002 + ISSUE-003 -> ISSUE-005 -> ISSUE-006 -> ISSUE-007 (Phase
 | US-007 | ISSUE-006 |
 | US-008 | ISSUE-016 |
 | US-009 | ISSUE-023 |
+| FR-019 | ISSUE-024, ISSUE-025, ISSUE-026 |
+| NFR-005 | ISSUE-024 |
 | NFR-006 | ISSUE-020, ISSUE-021 |
-| NFR-007 | ISSUE-019 |
+| NFR-007 | ISSUE-019, ISSUE-025 |
