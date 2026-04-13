@@ -11,8 +11,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var sleepManager: SleepManager!
     private var animationManager: AnimationManager!
     private var statusBarController: StatusBarController!
+    private var clamshellObserver: ClamshellObserver!
+    private var powerSourceMonitor: PowerSourceMonitor!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Skip full setup when running as a test host
+        guard NSClassFromString("XCTestCase") == nil else {
+            Logger.lifecycle.info("Running as test host -- skipping app setup")
+            return
+        }
+
         // Hide Dock icon but remain visible in Spotlight (unlike LSUIElement)
         NSApp.setActivationPolicy(.accessory)
         // Single-instance guard: quit if another instance is already running
@@ -27,8 +35,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         sleepManager = SleepManager()
         animationManager = AnimationManager()
-        appState = AppState(sleepManager: sleepManager)
+        clamshellObserver = ClamshellObserver()
+        powerSourceMonitor = PowerSourceMonitor()
+        appState = AppState(
+            sleepManager: sleepManager,
+            clamshellObserver: clamshellObserver,
+            powerSourceMonitor: powerSourceMonitor
+        )
         statusBarController = StatusBarController(appState: appState, animationManager: animationManager)
+
+        // Start lid and power source observers (always-on, even when inactive)
+        appState.startObservers()
 
         // Register signal handlers for clean shutdown on SIGTERM/SIGINT
         SignalHandler.register { [weak self] in

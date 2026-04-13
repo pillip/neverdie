@@ -72,6 +72,7 @@ final class StatusBarController {
 
         let contentView = ControlPopoverView(
             isActive: appState.isActive,
+            isPaused: appState.isPausedDueToClamshell,
             hasError: appState.lastError != nil,
             onToggle: { [weak self] in
                 self?.performToggle()
@@ -244,6 +245,8 @@ final class StatusBarController {
         guard let button = statusItem.button else { return }
         if appState.lastError != nil {
             button.setAccessibilityLabel(NSLocalizedString("status.error", comment: "Accessibility label when error"))
+        } else if appState.isPausedDueToClamshell {
+            button.setAccessibilityLabel(NSLocalizedString("status.paused", comment: "Accessibility label when paused due to clamshell"))
         } else if appState.isActive {
             button.setAccessibilityLabel(NSLocalizedString("status.sleep_prevention_on", comment: "Accessibility label when ON"))
         } else {
@@ -256,6 +259,8 @@ final class StatusBarController {
         let announcement: String
         if appState.lastError != nil {
             announcement = NSLocalizedString("announce.error", comment: "VoiceOver error announcement")
+        } else if appState.isPausedDueToClamshell {
+            announcement = NSLocalizedString("announce.paused", comment: "VoiceOver paused announcement")
         } else if appState.isActive {
             announcement = NSLocalizedString("announce.on", comment: "VoiceOver ON announcement")
         } else {

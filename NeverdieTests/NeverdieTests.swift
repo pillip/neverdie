@@ -1,4 +1,5 @@
 import XCTest
+import os
 @testable import Neverdie
 
 /// Tests for the Neverdie Xcode project scaffold (ISSUE-001).
