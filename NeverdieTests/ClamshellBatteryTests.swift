@@ -238,6 +238,117 @@ final class ClamshellBatteryTests: XCTestCase {
         XCTAssertEqual(appState.lastError, .assertionFailed)
     }
 
+    // MARK: - Stress: Rapid lid open/close idempotency (ISSUE-026)
+
+    /// 50 rapid lid open/close cycles ending with close on battery -> isPaused true, assertion released.
+    func testRapidLidCycles_finalCloseOnBattery_isPausedTrue() {
+        power.simulateTransition(.battery)
+        appState.toggle() // activate
+        XCTAssertTrue(appState.isActive)
+
+        for _ in 0..<50 {
+            clamshell.simulateClose()
+            clamshell.simulateOpen()
+        }
+        // Final close on battery
+        clamshell.simulateClose()
+
+        XCTAssertTrue(appState.isActive, "isActive should remain true")
+        XCTAssertTrue(appState.isPausedDueToClamshell, "should be paused after final close on battery")
+        XCTAssertFalse(sleepSpy.isAssertionHeld, "assertion should be released")
+
+        // No assertion leaks: preventSleep - allowSleep is 0 or 1
+        let delta = sleepSpy.preventSleepCallCount - sleepSpy.allowSleepCallCount
+        XCTAssertTrue(delta == 0 || delta == 1,
+                       "Assertion leak detected: prevent=\(sleepSpy.preventSleepCallCount) allow=\(sleepSpy.allowSleepCallCount)")
+    }
+
+    /// 50 rapid AC/battery transitions with lid closed -> final state matches last power source.
+    func testRapidPowerCycles_lidClosed_finalStateMatchesLastSource() {
+        appState.toggle() // activate on AC
+        clamshell.simulateClose()
+        XCTAssertFalse(appState.isPausedDueToClamshell, "AC + lid closed -> not paused")
+
+        for _ in 0..<50 {
+            power.simulateTransition(.battery)
+            power.simulateTransition(.ac)
+        }
+        // Final transition to battery
+        power.simulateTransition(.battery)
+
+        XCTAssertTrue(appState.isPausedDueToClamshell, "lid closed + battery -> paused")
+        XCTAssertFalse(sleepSpy.isAssertionHeld)
+
+        let delta = sleepSpy.preventSleepCallCount - sleepSpy.allowSleepCallCount
+        XCTAssertTrue(delta == 0 || delta == 1,
+                       "Assertion leak: prevent=\(sleepSpy.preventSleepCallCount) allow=\(sleepSpy.allowSleepCallCount)")
+    }
+
+    /// 50 rapid AC/battery transitions with lid closed -> final AC means not paused.
+    func testRapidPowerCycles_lidClosed_finalAC_notPaused() {
+        appState.toggle() // activate on AC
+        clamshell.simulateClose()
+
+        for _ in 0..<50 {
+            power.simulateTransition(.battery)
+            power.simulateTransition(.ac)
+        }
+
+        XCTAssertFalse(appState.isPausedDueToClamshell, "lid closed + AC -> not paused")
+        XCTAssertTrue(sleepSpy.isAssertionHeld)
+    }
+
+    /// 100 interleaved lid+power events -> final state consistent with last (lid, power) pair.
+    func testInterleavedLidAndPowerEvents_finalStateConsistent() {
+        appState.toggle() // activate
+
+        // Interleave lid and power events in varying patterns
+        for i in 0..<100 {
+            if i % 3 == 0 {
+                clamshell.simulateClose()
+            } else if i % 3 == 1 {
+                clamshell.simulateOpen()
+            } else {
+                power.simulateTransition(i % 5 == 0 ? .battery : .ac)
+            }
+        }
+
+        // Set known final state: lid closed + battery
+        clamshell.simulateClose()
+        power.simulateTransition(.battery)
+
+        XCTAssertTrue(appState.isActive)
+        XCTAssertTrue(appState.isPausedDueToClamshell)
+        XCTAssertFalse(sleepSpy.isAssertionHeld)
+
+        let delta = sleepSpy.preventSleepCallCount - sleepSpy.allowSleepCallCount
+        XCTAssertTrue(delta == 0 || delta == 1,
+                       "Assertion leak: prevent=\(sleepSpy.preventSleepCallCount) allow=\(sleepSpy.allowSleepCallCount)")
+    }
+
+    /// 100 interleaved events ending with lid open + AC -> assertion held, not paused.
+    func testInterleavedEvents_finalOpenAC_assertionHeld() {
+        appState.toggle() // activate
+
+        for i in 0..<100 {
+            switch i % 4 {
+            case 0: clamshell.simulateClose()
+            case 1: power.simulateTransition(.battery)
+            case 2: clamshell.simulateOpen()
+            case 3: power.simulateTransition(.ac)
+            default: break
+            }
+        }
+
+        // Set known final state: lid open + AC
+        clamshell.simulateOpen()
+        power.simulateTransition(.ac)
+
+        XCTAssertTrue(appState.isActive)
+        XCTAssertFalse(appState.isPausedDueToClamshell)
+        XCTAssertTrue(sleepSpy.isAssertionHeld)
+    }
+
     // MARK: - Full cycle: ON → lid close (battery) → lid open → OFF
 
     func testFullCycle() {
