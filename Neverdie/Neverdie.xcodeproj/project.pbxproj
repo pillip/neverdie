@@ -25,6 +25,7 @@
 		A10012 /* ClamshellObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20015 /* ClamshellObserver.swift */; };
 		A10013 /* PowerSourceMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20016 /* PowerSourceMonitor.swift */; };
 		A10014 /* ClamshellBatteryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20017 /* ClamshellBatteryTests.swift */; };
+		A10015 /* StatusBarClamshellTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20018 /* StatusBarClamshellTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -60,6 +61,7 @@
 		A20015 /* ClamshellObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClamshellObserver.swift; sourceTree = "<group>"; };
 		A20016 /* PowerSourceMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerSourceMonitor.swift; sourceTree = "<group>"; };
 		A20017 /* ClamshellBatteryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClamshellBatteryTests.swift; sourceTree = "<group>"; };
+		A20018 /* StatusBarClamshellTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBarClamshellTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -135,6 +137,7 @@
 			children = (
 				A20010 /* NeverdieTests.swift */,
 				A20017 /* ClamshellBatteryTests.swift */,
+				A20018 /* StatusBarClamshellTests.swift */,
 				A20006 /* Neverdie.entitlements */,
 			);
 			name = NeverdieTests;
@@ -256,6 +259,7 @@
 			files = (
 				A10010 /* NeverdieTests.swift in Sources */,
 				A10014 /* ClamshellBatteryTests.swift in Sources */,
+				A10015 /* StatusBarClamshellTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

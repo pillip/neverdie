@@ -23,6 +23,12 @@ final class StatusBarController {
     private var errorPulseTimer: Timer?
     private var errorPulseCount: Int = 0
 
+    // MARK: - Clamshell Pause Observation
+    /// Tracks the last known paused state to detect transitions.
+    private var lastKnownPausedState: Bool = false
+    /// Whether state observation is active (can be disabled for testing).
+    private var isObservingState: Bool = false
+
     // MARK: - Init
 
     init(appState: AppState, animationManager: AnimationManager) {
@@ -33,6 +39,7 @@ final class StatusBarController {
         setupButton()
         updateIcon()
         performLaunchFadeIn()
+        startStateObservation()
         logger.info("StatusBarController initialized")
     }
 
@@ -59,6 +66,7 @@ final class StatusBarController {
 
     private func performQuit() {
         logger.info("Quit selected from popover")
+        isObservingState = false
         stopFrameObserver()
         animationManager.stopAnimation()
         appState.cleanup()
@@ -147,6 +155,87 @@ final class StatusBarController {
         frameObserverTimer = nil
     }
 
+    // MARK: - State Observation (Clamshell Pause)
+
+    /// Start observing AppState for `isPausedDueToClamshell` changes using
+    /// `withObservationTracking` (Swift 5.9 Observation framework).
+    private func startStateObservation() {
+        isObservingState = true
+        lastKnownPausedState = appState.isPausedDueToClamshell
+        scheduleObservationTracking()
+    }
+
+    /// Schedules a single observation tracking cycle. When any observed property
+    /// changes, the `onChange` closure fires on the main thread and we re-schedule.
+    private func scheduleObservationTracking() {
+        guard isObservingState else { return }
+        withObservationTracking {
+            // Access properties we want to track — the framework records these.
+            _ = self.appState.isPausedDueToClamshell
+            _ = self.appState.isActive
+        } onChange: { [weak self] in
+            DispatchQueue.main.async {
+                self?.handleStateChange()
+            }
+        }
+    }
+
+    /// Called when observed AppState properties change.
+    private func handleStateChange() {
+        let wasPaused = lastKnownPausedState
+        let isPaused = appState.isPausedDueToClamshell
+
+        if isPaused != wasPaused {
+            lastKnownPausedState = isPaused
+            if isPaused {
+                handleEnterPaused()
+            } else {
+                handleExitPaused()
+            }
+        }
+
+        // Re-schedule for next change
+        scheduleObservationTracking()
+    }
+
+    /// Handle transition into paused state (isPausedDueToClamshell: false -> true).
+    /// Stops animation, shows OFF icon at 50% opacity, fires VoiceOver announcement.
+    private func handleEnterPaused() {
+        stopFrameObserver()
+        animationManager.stopAnimation()
+
+        guard let button = statusItem.button else { return }
+        button.image = animationManager.staticOffIcon
+        button.alphaValue = 0.5
+
+        updateAccessibility()
+        announceStateChange()
+
+        logger.info("StatusBarController: entered paused state (lid closed on battery)")
+    }
+
+    /// Handle transition out of paused state (isPausedDueToClamshell: true -> false).
+    /// If isActive, resumes animation at full opacity. Fires VoiceOver announcement.
+    private func handleExitPaused() {
+        guard let button = statusItem.button else { return }
+
+        if appState.isActive {
+            animationManager.startAnimation()
+            startFrameObserver()
+            button.alphaValue = 1.0
+        }
+        // If not active (user toggled off while paused), don't start animation
+        // but restore opacity
+        if !appState.isActive {
+            button.alphaValue = 1.0
+        }
+
+        updateAccessibility()
+        announceStateChange()
+
+        logger.info("StatusBarController: exited paused state")
+    }
+
     private func updateAnimatedIcon() {
         guard let button = statusItem.button else { return }
         let frame = animationManager.currentFrame
@@ -161,6 +250,14 @@ final class StatusBarController {
 
     func updateIcon() {
         guard let button = statusItem.button else { return }
+
+        // Handle paused state: show OFF icon at 50% opacity
+        if appState.isPausedDueToClamshell {
+            stopErrorPulseAnimation()
+            button.image = animationManager.staticOffIcon
+            button.alphaValue = 0.5
+            return
+        }
 
         if animationManager.isAnimating || animationManager.isPlayingTransition {
             let frame = animationManager.currentFrame
@@ -275,4 +372,22 @@ final class StatusBarController {
     }
 
     var item: NSStatusItem { statusItem }
+
+    // MARK: - Test Helpers
+
+    /// Exposes the current button alpha value for testing.
+    var buttonAlphaValue: CGFloat {
+        statusItem.button?.alphaValue ?? 1.0
+    }
+
+    /// Exposes whether the frame observer timer is active for testing.
+    var isFrameObserverActive: Bool {
+        frameObserverTimer != nil
+    }
+
+    /// Synchronously process a paused state change for testing.
+    /// This bypasses the async observation tracking.
+    func _testHandleStateChange() {
+        handleStateChange()
+    }
 }
