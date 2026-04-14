@@ -13,6 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusBarController: StatusBarController!
     private var clamshellObserver: ClamshellObserver!
     private var powerSourceMonitor: PowerSourceMonitor!
+    private var processMonitor: ProcessMonitor!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Skip full setup when running as a test host
@@ -37,15 +38,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         animationManager = AnimationManager()
         clamshellObserver = ClamshellObserver()
         powerSourceMonitor = PowerSourceMonitor()
+        processMonitor = ProcessMonitor()
         appState = AppState(
             sleepManager: sleepManager,
             clamshellObserver: clamshellObserver,
-            powerSourceMonitor: powerSourceMonitor
+            powerSourceMonitor: powerSourceMonitor,
+            processMonitor: processMonitor
         )
         statusBarController = StatusBarController(appState: appState, animationManager: animationManager)
 
         // Start lid and power source observers (always-on, even when inactive)
         appState.startObservers()
+
+        // Start process monitoring (always-on for auto-ON/auto-OFF)
+        appState.startProcessMonitoring()
 
         // Register signal handlers for clean shutdown on SIGTERM/SIGINT
         SignalHandler.register { [weak self] in

@@ -115,6 +115,10 @@ final class StatusBarController {
         let wasActive = appState.isActive
         appState.toggle()
 
+        // Sync tracked state so handleStateChange doesn't re-process this toggle
+        lastKnownActiveState = appState.isActive
+        lastKnownPausedState = appState.isPausedDueToClamshell
+
         if appState.isActive && !wasActive {
             animationManager.stopAnimation()
             animationManager.playTransition(type: .wakeUp) { [weak self] in
@@ -162,11 +166,15 @@ final class StatusBarController {
     private func startStateObservation() {
         isObservingState = true
         lastKnownPausedState = appState.isPausedDueToClamshell
+        lastKnownActiveState = appState.isActive
         scheduleObservationTracking()
     }
 
     /// Schedules a single observation tracking cycle. When any observed property
     /// changes, the `onChange` closure fires on the main thread and we re-schedule.
+    /// Tracks the last known active state to detect auto-ON/auto-OFF transitions.
+    private var lastKnownActiveState: Bool = false
+
     private func scheduleObservationTracking() {
         guard isObservingState else { return }
         withObservationTracking {
@@ -184,6 +192,8 @@ final class StatusBarController {
     private func handleStateChange() {
         let wasPaused = lastKnownPausedState
         let isPaused = appState.isPausedDueToClamshell
+        let wasActive = lastKnownActiveState
+        let isNowActive = appState.isActive
 
         if isPaused != wasPaused {
             lastKnownPausedState = isPaused
@@ -194,8 +204,38 @@ final class StatusBarController {
             }
         }
 
+        // Handle auto-ON/auto-OFF transitions (isActive changed without user toggle)
+        if isNowActive != wasActive {
+            lastKnownActiveState = isNowActive
+            if isNowActive {
+                handleAutoActivated()
+            } else {
+                handleAutoDeactivated()
+            }
+        }
+
         // Re-schedule for next change
         scheduleObservationTracking()
+    }
+
+    /// Handle auto-ON: start animation, update icon and accessibility.
+    private func handleAutoActivated() {
+        animationManager.startAnimation()
+        startFrameObserver()
+        updateIcon()
+        updateAccessibility()
+        announceStateChange()
+        logger.info("StatusBarController: auto-ON triggered")
+    }
+
+    /// Handle auto-OFF: stop animation, update icon and accessibility.
+    private func handleAutoDeactivated() {
+        stopFrameObserver()
+        animationManager.stopAnimation()
+        updateIcon()
+        updateAccessibility()
+        announceStateChange()
+        logger.info("StatusBarController: auto-OFF triggered")
     }
 
     /// Handle transition into paused state (isPausedDueToClamshell: false -> true).
