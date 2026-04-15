@@ -27,6 +27,19 @@ protocol ClamshellObserving: AnyObject {
     func stop()
 }
 
+/// Protocol for monitoring Claude Code processes.
+protocol ProcessMonitoring: AnyObject {
+    /// Synchronously poll for running Claude Code processes.
+    /// - Returns: The count of matching processes.
+    func pollOnce() -> Int
+
+    /// Start periodic polling with a callback for each update.
+    func startPolling(onUpdate: @escaping (Int) -> Void)
+
+    /// Stop periodic polling and invalidate the timer.
+    func stopPolling()
+}
+
 /// Protocol for observing AC vs battery power transitions.
 protocol PowerSourceMonitoring: AnyObject {
     var currentSource: PowerSource { get }

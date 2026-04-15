@@ -6,6 +6,12 @@ enum NeverdieError: Equatable, Sendable {
     case assertionFailed
 }
 
+/// How Neverdie was activated.
+enum ActivationSource: Equatable, Sendable {
+    case manual
+    case auto
+}
+
 /// Central state management for the Neverdie app.
 ///
 /// AppState is the single source of truth for UI and service state.
@@ -34,11 +40,21 @@ final class AppState {
     /// The most recent error, if any.
     private(set) var lastError: NeverdieError? = nil
 
+    /// How Neverdie was activated (manual click or auto-detected process).
+    private(set) var activationSource: ActivationSource = .manual
+
+    /// Number of detected Claude Code processes from the last poll.
+    private(set) var processCount: Int = 0
+
+    /// Whether any Claude process was ever detected during the current ON session.
+    private(set) var claudeProcessesEverDetected: Bool = false
+
     // MARK: - Dependencies
 
     private let sleepManager: SleepManaging?
     private(set) var clamshellObserver: ClamshellObserving?
     private(set) var powerSourceMonitor: PowerSourceMonitoring?
+    private(set) var processMonitor: ProcessMonitoring?
 
     // MARK: - Internal State
 
@@ -50,10 +66,12 @@ final class AppState {
     init(sleepManager: SleepManaging? = nil,
          clamshellObserver: ClamshellObserving? = nil,
          powerSourceMonitor: PowerSourceMonitoring? = nil,
+         processMonitor: ProcessMonitoring? = nil,
          debounceInterval: TimeInterval = 0.3) {
         self.sleepManager = sleepManager
         self.clamshellObserver = clamshellObserver
         self.powerSourceMonitor = powerSourceMonitor
+        self.processMonitor = processMonitor
         self.debounceInterval = debounceInterval
     }
 
@@ -73,6 +91,47 @@ final class AppState {
     func stopObservers() {
         clamshellObserver?.stop()
         powerSourceMonitor?.stop()
+    }
+
+    // MARK: - Process Monitoring
+
+    /// Start process monitoring. Polling begins immediately and fires the
+    /// auto-ON / auto-OFF logic on each update.
+    func startProcessMonitoring() {
+        processMonitor?.startPolling { [weak self] count in
+            self?.handleProcessUpdate(count)
+        }
+    }
+
+    /// Stop process monitoring.
+    func stopProcessMonitoring() {
+        processMonitor?.stopPolling()
+    }
+
+    /// Handle a process count update from ProcessMonitor.
+    ///
+    /// Note: If the user manually toggles ON while Claude is running, `claudeProcessesEverDetected`
+    /// will be set to `true` on the next poll. This means auto-OFF will trigger when Claude exits,
+    /// even though the user manually activated. This is intentional: once processes are detected,
+    /// the app treats them as the reason for staying on, regardless of activation source.
+    func handleProcessUpdate(_ count: Int) {
+        processCount = count
+
+        if isActive {
+            // Track that we saw processes while active
+            if count > 0 {
+                claudeProcessesEverDetected = true
+            }
+            // Auto-OFF: only when processes were previously detected and now all gone
+            if claudeProcessesEverDetected && count == 0 {
+                autoDeactivate()
+            }
+        } else {
+            // Auto-ON: activate when Claude processes appear
+            if count > 0 {
+                autoActivate()
+            }
+        }
     }
 
     // MARK: - Toggle
@@ -99,7 +158,9 @@ final class AppState {
         lastError = nil
         isActive = true
         isPausedDueToClamshell = false
-        Logger.lifecycle.info("Neverdie activated")
+        activationSource = .manual
+        claudeProcessesEverDetected = false
+        Logger.lifecycle.info("Neverdie activated (source: manual)")
         reconcileAssertion()
     }
 
@@ -107,7 +168,26 @@ final class AppState {
         sleepManager?.allowSleep()
         isActive = false
         isPausedDueToClamshell = false
-        Logger.lifecycle.info("Neverdie deactivated")
+        claudeProcessesEverDetected = false
+        Logger.lifecycle.info("Neverdie deactivated (source: manual)")
+    }
+
+    private func autoActivate() {
+        lastError = nil
+        isActive = true
+        isPausedDueToClamshell = false
+        activationSource = .auto
+        claudeProcessesEverDetected = true
+        Logger.lifecycle.info("Neverdie activated (source: auto, claude processes detected)")
+        reconcileAssertion()
+    }
+
+    private func autoDeactivate() {
+        sleepManager?.allowSleep()
+        isActive = false
+        isPausedDueToClamshell = false
+        claudeProcessesEverDetected = false
+        Logger.lifecycle.info("Neverdie deactivated (source: auto, all sessions ended)")
     }
 
     // MARK: - Assertion Reconciliation (FR-019)
@@ -160,6 +240,7 @@ final class AppState {
 
     /// Perform full cleanup before app termination.
     func cleanup() {
+        stopProcessMonitoring()
         stopObservers()
         if isActive || sleepManager?.isAssertionHeld == true {
             sleepManager?.allowSleep()
@@ -167,6 +248,8 @@ final class AppState {
         isActive = false
         isPausedDueToClamshell = false
         lastError = nil
+        processCount = 0
+        claudeProcessesEverDetected = false
         Logger.lifecycle.info("Cleanup complete")
     }
 }
