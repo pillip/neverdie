@@ -5,17 +5,27 @@ import os
 /// Monitors running processes for Claude Code instances using libproc APIs.
 ///
 /// Uses `proc_listallpids()` to enumerate all PIDs and `proc_name()` to match
-/// against known Claude Code process names. Polling is Timer-based at 30-second
-/// intervals for minimal CPU overhead (NFR-004).
+/// against known Claude Code process names. Polling is Timer-based with two
+/// intervals: 30s when active (for responsive auto-OFF) and 90s when inactive
+/// (to reduce timer wake-ups and allow macOS App Nap).
 final class ProcessMonitor: ProcessMonitoring {
     /// Known process names for Claude Code (exact match only).
     static let targetNames: Set<String> = ["claude", "claude-code"]
 
-    /// Polling interval in seconds.
-    let pollInterval: TimeInterval = 30.0
+    /// Polling interval when Neverdie is active (ON).
+    let pollIntervalActive: TimeInterval = 30.0
 
-    /// Timer tolerance for energy efficiency.
-    let pollTolerance: TimeInterval = 5.0
+    /// Polling interval when Neverdie is inactive (OFF).
+    /// Longer interval reduces timer wake-ups and allows macOS App Nap.
+    let pollIntervalInactive: TimeInterval = 90.0
+
+    /// Whether the monitor is currently using the active (short) polling interval.
+    private(set) var isActivePolling: Bool = false
+
+    /// Current effective polling interval.
+    var currentInterval: TimeInterval {
+        isActivePolling ? pollIntervalActive : pollIntervalInactive
+    }
 
     private var timer: Timer?
     private var onUpdate: ((Int) -> Void)?
@@ -71,14 +81,9 @@ final class ProcessMonitor: ProcessMonitoring {
         let count = pollOnce()
         onUpdate(count)
 
-        timer = Timer.scheduledTimer(withTimeInterval: pollInterval, repeats: true) { [weak self] _ in
-            guard let self = self else { return }
-            let count = self.pollOnce()
-            self.onUpdate?(count)
-        }
-        timer?.tolerance = pollTolerance
+        scheduleTimer()
 
-        logger.info("Process polling started (interval: \(self.pollInterval)s)")
+        logger.info("Process polling started (interval: \(self.currentInterval)s, active: \(self.isActivePolling))")
     }
 
     func stopPolling() {
@@ -86,6 +91,31 @@ final class ProcessMonitor: ProcessMonitoring {
         timer = nil
         onUpdate = nil
         logger.info("Process polling stopped")
+    }
+
+    func setActivePolling(_ active: Bool) {
+        guard isActivePolling != active else { return }
+        isActivePolling = active
+
+        // Reschedule the timer only if polling is currently running
+        if timer != nil, onUpdate != nil {
+            timer?.invalidate()
+            timer = nil
+            scheduleTimer()
+            logger.info("Polling interval switched to \(self.currentInterval)s (active: \(active))")
+        }
+    }
+
+    // MARK: - Private
+
+    private func scheduleTimer() {
+        let interval = currentInterval
+        timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            let count = self.pollOnce()
+            self.onUpdate?(count)
+        }
+        timer?.tolerance = interval * 0.15
     }
 
     deinit {
