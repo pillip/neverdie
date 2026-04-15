@@ -48,6 +48,15 @@ final class ProcessMonitorPollTests: XCTestCase {
         XCTAssertEqual(ProcessMonitor.targetNames, ["claude", "claude-code"])
     }
 
+    /// Target names reject substrings -- exact match only.
+    func testTargetNames_rejectsSubstrings() {
+        let names = ProcessMonitor.targetNames
+        XCTAssertFalse(names.contains("claudex"), "Should reject 'claudex' (suffix)")
+        XCTAssertFalse(names.contains("myclaude"), "Should reject 'myclaude' (prefix)")
+        XCTAssertFalse(names.contains("claude-code-helper"), "Should reject 'claude-code-helper'")
+        XCTAssertFalse(names.contains("node"), "Should reject unrelated process")
+    }
+
     /// stopPolling invalidates the timer; subsequent callbacks don't fire.
     func testStopPolling_invalidatesTimer() {
         let monitor = ProcessMonitor()

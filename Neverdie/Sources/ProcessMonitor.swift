@@ -31,8 +31,8 @@ final class ProcessMonitor: ProcessMonitoring {
             return 0
         }
 
-        // Allocate buffer and get all PIDs
-        var pids = [pid_t](repeating: 0, count: Int(pidCount))
+        // Allocate buffer with margin for processes spawned between the two calls
+        var pids = [pid_t](repeating: 0, count: Int(pidCount) + 16)
         pidCount = pids.withUnsafeMutableBufferPointer { buffer in
             proc_listallpids(buffer.baseAddress, Int32(buffer.count * MemoryLayout<pid_t>.size))
         }

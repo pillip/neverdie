@@ -109,6 +109,11 @@ final class AppState {
     }
 
     /// Handle a process count update from ProcessMonitor.
+    ///
+    /// Note: If the user manually toggles ON while Claude is running, `claudeProcessesEverDetected`
+    /// will be set to `true` on the next poll. This means auto-OFF will trigger when Claude exits,
+    /// even though the user manually activated. This is intentional: once processes are detected,
+    /// the app treats them as the reason for staying on, regardless of activation source.
     func handleProcessUpdate(_ count: Int) {
         processCount = count
 
