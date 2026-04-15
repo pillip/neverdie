@@ -13,55 +13,57 @@ enum AnimationTransition: Equatable, Sendable {
 ///
 /// AnimationManager pre-loads all animation frames from the asset catalog at init,
 /// cycles through them at 6fps via Timer, and provides a `currentFrame` property
-/// for the StatusBarController to observe.
+/// for the StatusBarController to observe via the Observation framework.
 ///
 /// Supports:
 /// - Main loop animation (ON state)
 /// - Transition animations (wake-up, fall-asleep, auto-OFF)
 /// - Reduced motion accessibility (static frame instead of animation)
 /// - Fallback to SF Symbol if assets are missing
+@Observable
 final class AnimationManager {
-    private let logger = Logger.ui
+    @ObservationIgnored private let logger = Logger.ui
 
     // MARK: - Frame Data
 
     /// Main loop frames (ZombieOn_01 through ZombieOn_04).
-    private let loopFrames: [NSImage]
+    @ObservationIgnored private let loopFrames: [NSImage]
 
     /// Wake-up transition frames (ZombieWake_01, ZombieWake_02).
-    private let wakeUpFrames: [NSImage]
+    @ObservationIgnored private let wakeUpFrames: [NSImage]
 
     /// Fall-asleep transition frames (ZombieSleepTrans_01 through ZombieSleepTrans_03).
-    private let fallAsleepFrames: [NSImage]
+    @ObservationIgnored private let fallAsleepFrames: [NSImage]
 
     /// Static OFF icon (sleeping zombie).
-    let staticOffIcon: NSImage
+    @ObservationIgnored let staticOffIcon: NSImage
 
     /// Fallback icon when assets are missing.
-    private let fallbackIcon: NSImage
+    @ObservationIgnored private let fallbackIcon: NSImage
 
     // MARK: - Animation State
 
     /// The current frame to display in the menu bar.
+    /// Observed by StatusBarController to reactively update the icon.
     private(set) var currentFrame: NSImage
 
     /// Timer for frame cycling.
-    private var timer: Timer?
+    @ObservationIgnored private var timer: Timer?
 
     /// Current index in the active frame sequence.
-    private var frameIndex: Int = 0
+    @ObservationIgnored private var frameIndex: Int = 0
 
     /// Whether a transition is currently playing.
     private(set) var isPlayingTransition: Bool = false
 
     /// Frames currently being played (transition or loop).
-    private var activeFrames: [NSImage] = []
+    @ObservationIgnored private var activeFrames: [NSImage] = []
 
     /// Completion handler for the current transition.
-    private var transitionCompletion: (() -> Void)?
+    @ObservationIgnored private var transitionCompletion: (() -> Void)?
 
     /// Frames per second for animation.
-    let fps: Double = 6.0
+    @ObservationIgnored let fps: Double = 6.0
 
     /// Whether the main loop animation is running.
     private(set) var isAnimating: Bool = false
@@ -69,12 +71,12 @@ final class AnimationManager {
     // MARK: - Accessibility
 
     /// Whether reduced motion is enabled.
-    var reducedMotionEnabled: Bool {
+    @ObservationIgnored var reducedMotionEnabled: Bool {
         NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
     }
 
     /// Observer token for accessibility changes.
-    private var accessibilityObserver: NSObjectProtocol?
+    @ObservationIgnored private var accessibilityObserver: NSObjectProtocol?
 
     // MARK: - Init
 
