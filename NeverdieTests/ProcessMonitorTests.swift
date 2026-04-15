@@ -9,6 +9,12 @@ final class FakeProcessMonitor: ProcessMonitoring {
     private var onUpdate: ((Int) -> Void)?
     var stubbedCount: Int = 0
 
+    /// Tracks whether active polling is currently set.
+    private(set) var isActivePolling: Bool = false
+
+    /// Records all setActivePolling calls for assertion in tests.
+    var activePollingHistory: [Bool] = []
+
     func pollOnce() -> Int {
         return stubbedCount
     }
@@ -23,6 +29,11 @@ final class FakeProcessMonitor: ProcessMonitoring {
     func stopPolling() {
         isPolling = false
         onUpdate = nil
+    }
+
+    func setActivePolling(_ active: Bool) {
+        isActivePolling = active
+        activePollingHistory.append(active)
     }
 
     /// Simulate a poll update with a given count.
@@ -77,6 +88,77 @@ final class ProcessMonitorPollTests: XCTestCase {
     }
 }
 
+// MARK: - Polling Interval Tests
+
+final class ProcessMonitorIntervalTests: XCTestCase {
+
+    /// Default interval is inactive (90s) when monitor is created.
+    func testDefaultInterval_isInactive() {
+        let monitor = ProcessMonitor()
+        XCTAssertFalse(monitor.isActivePolling)
+        XCTAssertEqual(monitor.currentInterval, 90.0)
+    }
+
+    /// Active polling interval is 30s.
+    func testActiveInterval_is30s() {
+        let monitor = ProcessMonitor()
+        monitor.setActivePolling(true)
+        XCTAssertTrue(monitor.isActivePolling)
+        XCTAssertEqual(monitor.currentInterval, 30.0)
+    }
+
+    /// Inactive polling interval is 90s (>= 60s per AC).
+    func testInactiveInterval_is90s() {
+        let monitor = ProcessMonitor()
+        monitor.setActivePolling(true)
+        monitor.setActivePolling(false)
+        XCTAssertEqual(monitor.currentInterval, 90.0)
+    }
+
+    /// setActivePolling is idempotent -- calling with same value is a no-op.
+    func testSetActivePolling_idempotent() {
+        let monitor = ProcessMonitor()
+        monitor.setActivePolling(false) // already false
+        XCTAssertFalse(monitor.isActivePolling, "Should remain false")
+        XCTAssertEqual(monitor.currentInterval, 90.0)
+    }
+
+    /// Timer tolerance is 15% of the current interval.
+    func testTimerTolerance_is15PercentOfInterval() {
+        let monitor = ProcessMonitor()
+        // Verify the tolerance constants are proportional
+        XCTAssertEqual(monitor.pollIntervalActive * 0.15, 4.5, accuracy: 0.01)
+        XCTAssertEqual(monitor.pollIntervalInactive * 0.15, 13.5, accuracy: 0.01)
+    }
+
+    /// stopPolling works regardless of current interval (active or inactive).
+    func testStopPolling_worksRegardlessOfInterval() {
+        let monitor = ProcessMonitor()
+        var callCount = 0
+
+        // Start with inactive interval
+        monitor.startPolling { _ in callCount += 1 }
+        XCTAssertEqual(callCount, 1)
+        monitor.stopPolling()
+
+        callCount = 0
+
+        // Start with active interval
+        monitor.setActivePolling(true)
+        monitor.startPolling { _ in callCount += 1 }
+        XCTAssertEqual(callCount, 1)
+        monitor.stopPolling()
+
+        // Wait to confirm no further callbacks in either case
+        let expectation = XCTestExpectation(description: "No further callbacks")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            XCTAssertEqual(callCount, 1, "No callbacks after stopPolling (active)")
+            expectation.fulfill()
+        }
+        wait(for: [expectation], timeout: 1.0)
+    }
+}
+
 // MARK: - Auto-ON / Auto-OFF Integration Tests
 
 final class AutoOnOffTests: XCTestCase {
@@ -110,7 +192,7 @@ final class AutoOnOffTests: XCTestCase {
 
     // MARK: - Auto-ON Tests
 
-    /// AC 7: OFF + count >= 1 → auto-activate with activationSource=.auto
+    /// AC 7: OFF + count >= 1 -> auto-activate with activationSource=.auto
     func testAutoOn_whenOffAndProcessDetected() {
         XCTAssertFalse(appState.isActive)
 
@@ -128,7 +210,7 @@ final class AutoOnOffTests: XCTestCase {
         XCTAssertEqual(appState.activationSource, .auto)
     }
 
-    /// Auto-ON while clamshell on battery → isActive=true, assertion NOT held
+    /// Auto-ON while clamshell on battery -> isActive=true, assertion NOT held
     func testAutoOn_clamshellOnBattery_isPausedNoAssertion() {
         power.simulateTransition(.battery)
         clamshell.simulateClose()
@@ -153,7 +235,7 @@ final class AutoOnOffTests: XCTestCase {
 
     // MARK: - Auto-OFF Tests
 
-    /// AC 4: ON + claudeProcessesEverDetected + count==0 → auto-deactivate
+    /// AC 4: ON + claudeProcessesEverDetected + count==0 -> auto-deactivate
     func testAutoOff_whenActiveAndAllProcessesGone() {
         appState.handleProcessUpdate(1) // auto-ON
         XCTAssertTrue(appState.isActive)
@@ -165,7 +247,7 @@ final class AutoOnOffTests: XCTestCase {
         XCTAssertFalse(sleepSpy.isAssertionHeld)
     }
 
-    /// AC 5: Manual ON, no processes ever detected, count==0 → stays ON
+    /// AC 5: Manual ON, no processes ever detected, count==0 -> stays ON
     func testAutoOff_manualActivation_noProcessesEverDetected_staysOn() {
         appState.toggle() // manual ON
         XCTAssertTrue(appState.isActive)
@@ -176,7 +258,7 @@ final class AutoOnOffTests: XCTestCase {
         XCTAssertTrue(appState.isActive, "Should stay ON (manual, no processes ever detected)")
     }
 
-    /// AC 6: ON + 2 processes, 1 terminates → stays ON
+    /// AC 6: ON + 2 processes, 1 terminates -> stays ON
     func testPartialExit_staysOn() {
         appState.handleProcessUpdate(2) // auto-ON
         XCTAssertTrue(appState.isActive)
@@ -187,7 +269,7 @@ final class AutoOnOffTests: XCTestCase {
         XCTAssertTrue(sleepSpy.isAssertionHeld)
     }
 
-    /// Auto-OFF while isPausedDueToClamshell → isActive=false, paused cleared
+    /// Auto-OFF while isPausedDueToClamshell -> isActive=false, paused cleared
     func testAutoOff_whilePaused_clearsPausedState() {
         power.simulateTransition(.battery)
         clamshell.simulateClose()
@@ -229,18 +311,18 @@ final class AutoOnOffTests: XCTestCase {
         XCTAssertEqual(appState.processCount, 1)
     }
 
-    /// Full auto cycle: OFF → auto-ON (process appears) → auto-OFF (process ends)
+    /// Full auto cycle: OFF -> auto-ON (process appears) -> auto-OFF (process ends)
     func testFullAutoCycle() {
         // Start OFF
         XCTAssertFalse(appState.isActive)
 
-        // Process appears → auto-ON
+        // Process appears -> auto-ON
         appState.handleProcessUpdate(1)
         XCTAssertTrue(appState.isActive)
         XCTAssertEqual(appState.activationSource, .auto)
         XCTAssertTrue(sleepSpy.isAssertionHeld)
 
-        // Process ends → auto-OFF
+        // Process ends -> auto-OFF
         appState.handleProcessUpdate(0)
         XCTAssertFalse(appState.isActive)
         XCTAssertFalse(sleepSpy.isAssertionHeld)
@@ -255,5 +337,70 @@ final class AutoOnOffTests: XCTestCase {
         // Initial poll should trigger auto-ON since count > 0
         XCTAssertTrue(appState.isActive)
         XCTAssertEqual(appState.processCount, 2)
+    }
+
+    // MARK: - Polling Interval Switching Tests (ISSUE-028)
+
+    /// Auto-ON switches processMonitor to active (fast) polling.
+    func testAutoOn_switchesToActivePolling() {
+        XCTAssertFalse(processMonitor.isActivePolling, "Should start inactive")
+
+        appState.handleProcessUpdate(1) // auto-ON
+
+        XCTAssertTrue(processMonitor.isActivePolling, "Should switch to active polling on auto-ON")
+    }
+
+    /// Auto-OFF switches processMonitor to inactive (slow) polling.
+    func testAutoOff_switchesToInactivePolling() {
+        appState.handleProcessUpdate(1) // auto-ON
+        XCTAssertTrue(processMonitor.isActivePolling)
+
+        appState.handleProcessUpdate(0) // auto-OFF
+
+        XCTAssertFalse(processMonitor.isActivePolling, "Should switch to inactive polling on auto-OFF")
+    }
+
+    /// Manual toggle ON switches to active polling.
+    func testManualToggleOn_switchesToActivePolling() {
+        appState.toggle() // manual ON
+        XCTAssertTrue(processMonitor.isActivePolling, "Should switch to active polling on manual ON")
+    }
+
+    /// Manual toggle OFF switches to inactive polling.
+    func testManualToggleOff_switchesToInactivePolling() {
+        appState.toggle() // ON
+        XCTAssertTrue(processMonitor.isActivePolling)
+
+        appState.toggle() // OFF
+        XCTAssertFalse(processMonitor.isActivePolling, "Should switch to inactive polling on manual OFF")
+    }
+
+    /// Full auto cycle tracks polling interval transitions correctly.
+    func testFullAutoCycle_pollingIntervalHistory() {
+        processMonitor.activePollingHistory = [] // reset
+
+        // auto-ON
+        appState.handleProcessUpdate(1)
+        // auto-OFF
+        appState.handleProcessUpdate(0)
+
+        XCTAssertEqual(processMonitor.activePollingHistory, [true, false],
+                       "Should record active=true on auto-ON, then active=false on auto-OFF")
+    }
+
+    /// stopPolling works regardless of current polling interval.
+    func testStopPolling_worksRegardlessOfPollingInterval() {
+        // Start with inactive polling
+        appState.startProcessMonitoring()
+        XCTAssertTrue(processMonitor.isPolling)
+        appState.stopProcessMonitoring()
+        XCTAssertFalse(processMonitor.isPolling)
+
+        // Switch to active, start, stop
+        processMonitor.setActivePolling(true)
+        appState.startProcessMonitoring()
+        XCTAssertTrue(processMonitor.isPolling)
+        appState.stopProcessMonitoring()
+        XCTAssertFalse(processMonitor.isPolling, "stopPolling should work with active interval")
     }
 }

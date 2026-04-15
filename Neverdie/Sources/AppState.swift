@@ -160,6 +160,7 @@ final class AppState {
         isPausedDueToClamshell = false
         activationSource = .manual
         claudeProcessesEverDetected = false
+        processMonitor?.setActivePolling(true)
         Logger.lifecycle.info("Neverdie activated (source: manual)")
         reconcileAssertion()
     }
@@ -169,6 +170,7 @@ final class AppState {
         isActive = false
         isPausedDueToClamshell = false
         claudeProcessesEverDetected = false
+        processMonitor?.setActivePolling(false)
         Logger.lifecycle.info("Neverdie deactivated (source: manual)")
     }
 
@@ -178,6 +180,7 @@ final class AppState {
         isPausedDueToClamshell = false
         activationSource = .auto
         claudeProcessesEverDetected = true
+        processMonitor?.setActivePolling(true)
         Logger.lifecycle.info("Neverdie activated (source: auto, claude processes detected)")
         reconcileAssertion()
     }
@@ -187,6 +190,7 @@ final class AppState {
         isActive = false
         isPausedDueToClamshell = false
         claudeProcessesEverDetected = false
+        processMonitor?.setActivePolling(false)
         Logger.lifecycle.info("Neverdie deactivated (source: auto, all sessions ended)")
     }
 

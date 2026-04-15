@@ -38,6 +38,12 @@ protocol ProcessMonitoring: AnyObject {
 
     /// Stop periodic polling and invalidate the timer.
     func stopPolling()
+
+    /// Switch between active (short) and inactive (long) polling intervals.
+    /// When `active` is true, uses the faster polling interval for responsive
+    /// auto-OFF detection. When false, uses a longer interval to reduce
+    /// timer wake-ups and allow macOS App Nap.
+    func setActivePolling(_ active: Bool)
 }
 
 /// Protocol for observing AC vs battery power transitions.
