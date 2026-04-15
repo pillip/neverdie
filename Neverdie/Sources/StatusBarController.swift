@@ -16,8 +16,8 @@ final class StatusBarController {
     private let logger = Logger.ui
     private var popover: NSPopover?
 
-    /// Timer to observe AnimationManager.currentFrame changes.
-    private var frameObserverTimer: Timer?
+    /// Whether frame observation is active (tracks animationManager.currentFrame).
+    private var isObservingFrames: Bool = false
 
     // MARK: - Error Pulse State
     private var errorPulseTimer: Timer?
@@ -67,7 +67,7 @@ final class StatusBarController {
     private func performQuit() {
         logger.info("Quit selected from popover")
         isObservingState = false
-        stopFrameObserver()
+        stopFrameObservation()
         animationManager.stopAnimation()
         appState.cleanup()
         NSApplication.shared.terminate(nil)
@@ -124,9 +124,9 @@ final class StatusBarController {
             animationManager.playTransition(type: .wakeUp) { [weak self] in
                 self?.animationManager.startAnimation()
             }
-            startFrameObserver()
+            startFrameObservation()
         } else if !appState.isActive && wasActive {
-            stopFrameObserver()
+            stopFrameObservation()
             animationManager.playTransition(type: .fallAsleep) { [weak self] in
                 self?.animationManager.stopAnimation()
                 self?.updateIcon()
@@ -144,19 +144,34 @@ final class StatusBarController {
         logger.info("Toggle triggered, isActive=\(self.appState.isActive)")
     }
 
-    // MARK: - Frame Observer
+    // MARK: - Frame Observation
 
-    private func startFrameObserver() {
-        stopFrameObserver()
-        frameObserverTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / animationManager.fps, repeats: true) { [weak self] _ in
-            self?.updateAnimatedIcon()
-        }
-        frameObserverTimer?.tolerance = 0.05
+    /// Start observing `animationManager.currentFrame` using the Observation framework.
+    /// When `currentFrame` changes, `updateAnimatedIcon()` is called reactively.
+    private func startFrameObservation() {
+        guard !isObservingFrames else { return }
+        isObservingFrames = true
+        scheduleFrameTracking()
     }
 
-    private func stopFrameObserver() {
-        frameObserverTimer?.invalidate()
-        frameObserverTimer = nil
+    /// Stop observing frame changes. The next scheduled tracking cycle will
+    /// see `isObservingFrames == false` and exit.
+    private func stopFrameObservation() {
+        isObservingFrames = false
+    }
+
+    /// Schedules a single observation tracking cycle for `currentFrame`.
+    private func scheduleFrameTracking() {
+        guard isObservingFrames else { return }
+        withObservationTracking {
+            _ = self.animationManager.currentFrame
+        } onChange: { [weak self] in
+            DispatchQueue.main.async {
+                guard let self = self, self.isObservingFrames else { return }
+                self.updateAnimatedIcon()
+                self.scheduleFrameTracking()
+            }
+        }
     }
 
     // MARK: - State Observation (Clamshell Pause)
@@ -221,7 +236,7 @@ final class StatusBarController {
     /// Handle auto-ON: start animation, update icon and accessibility.
     private func handleAutoActivated() {
         animationManager.startAnimation()
-        startFrameObserver()
+        startFrameObservation()
         updateIcon()
         updateAccessibility()
         announceStateChange()
@@ -230,7 +245,7 @@ final class StatusBarController {
 
     /// Handle auto-OFF: stop animation, update icon and accessibility.
     private func handleAutoDeactivated() {
-        stopFrameObserver()
+        stopFrameObservation()
         animationManager.stopAnimation()
         updateIcon()
         updateAccessibility()
@@ -241,7 +256,7 @@ final class StatusBarController {
     /// Handle transition into paused state (isPausedDueToClamshell: false -> true).
     /// Stops animation, shows OFF icon at 50% opacity, fires VoiceOver announcement.
     private func handleEnterPaused() {
-        stopFrameObserver()
+        stopFrameObservation()
         animationManager.stopAnimation()
 
         guard let button = statusItem.button else { return }
@@ -261,7 +276,7 @@ final class StatusBarController {
 
         if appState.isActive {
             animationManager.startAnimation()
-            startFrameObserver()
+            startFrameObservation()
             button.alphaValue = 1.0
         }
         // If not active (user toggled off while paused), don't start animation
@@ -420,9 +435,9 @@ final class StatusBarController {
         statusItem.button?.alphaValue ?? 1.0
     }
 
-    /// Exposes whether the frame observer timer is active for testing.
+    /// Exposes whether frame observation is active for testing.
     var isFrameObserverActive: Bool {
-        frameObserverTimer != nil
+        isObservingFrames
     }
 
     /// Synchronously process a paused state change for testing.

@@ -98,6 +98,53 @@ final class StatusBarClamshellTests: XCTestCase {
                        "Button alpha should be restored to 1.0")
     }
 
+    // MARK: - ISSUE-029: Observation-based frame updates (no polling timer)
+
+    func testToggleOn_startsFrameObservation() {
+        XCTAssertFalse(sut.isFrameObserverActive, "Frame observation should be inactive when OFF")
+
+        sut.performToggle()
+        XCTAssertTrue(appState.isActive)
+
+        XCTAssertTrue(sut.isFrameObserverActive,
+                      "Frame observation should be active after toggle ON")
+    }
+
+    func testToggleOff_stopsFrameObservation() {
+        sut.performToggle() // ON
+        XCTAssertTrue(sut.isFrameObserverActive)
+
+        sut.performToggle() // OFF
+        XCTAssertFalse(appState.isActive)
+
+        XCTAssertFalse(sut.isFrameObserverActive,
+                       "Frame observation should be inactive after toggle OFF")
+    }
+
+    func testAutoActivated_startsFrameObservation() {
+        // Simulate auto-ON via state change
+        appState.handleProcessUpdate(1)
+        XCTAssertTrue(appState.isActive)
+
+        sut._testHandleStateChange()
+
+        XCTAssertTrue(sut.isFrameObserverActive,
+                      "Frame observation should start on auto-activation")
+    }
+
+    func testAutoDeactivated_stopsFrameObservation() {
+        // Auto-ON then auto-OFF
+        appState.handleProcessUpdate(1)
+        sut._testHandleStateChange()
+        XCTAssertTrue(sut.isFrameObserverActive)
+
+        appState.handleProcessUpdate(0)
+        sut._testHandleStateChange()
+
+        XCTAssertFalse(sut.isFrameObserverActive,
+                       "Frame observation should stop on auto-deactivation")
+    }
+
     // MARK: - updateIcon reflects paused state
 
     func testUpdateIcon_whenPaused_showsOffIconDimmed() {
