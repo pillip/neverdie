@@ -113,7 +113,7 @@ struct ControlPopoverView: View {
                 launchAtLogin = true
             }
         } catch {
-            Logger.lifecycle.error("SMAppService failed: \(error.localizedDescription)")
+            Logger.lifecycle.error("SMAppService failed: \(error.localizedDescription, privacy: .public)")
             if let handler = onLoginItemError {
                 handler(error)
             } else {
