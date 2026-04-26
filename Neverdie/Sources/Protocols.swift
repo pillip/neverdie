@@ -52,3 +52,23 @@ protocol PowerSourceMonitoring: AnyObject {
     func start(onChange: @escaping (PowerSource) -> Void)
     func stop()
 }
+
+/// Login item status, mirroring `SMAppService.Status` cases relevant to the UI.
+enum LoginItemStatus: Equatable {
+    case enabled
+    case notRegistered
+    case requiresApproval
+}
+
+/// Protocol for managing login item registration via SMAppService.
+/// Enables dependency injection and testability for Launch at Login functionality.
+protocol LoginItemManaging {
+    /// The current registration status of the login item.
+    var status: LoginItemStatus { get }
+
+    /// Register the app as a login item. Throws on failure.
+    func register() throws
+
+    /// Unregister the app as a login item. Throws on failure.
+    func unregister() throws
+}
