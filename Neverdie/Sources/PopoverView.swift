@@ -21,6 +21,36 @@ struct SystemLoginItemManager: LoginItemManaging {
     }
 }
 
+// MARK: - Login Item Toggle Logic
+
+/// Result of a login item toggle attempt.
+enum LoginItemToggleResult {
+    case registered
+    case unregistered
+    case failed(wasEnabling: Bool, error: Error)
+}
+
+/// Toggle login item registration. Testable pure logic — no UI, no logging.
+///
+/// - If status is `.enabled`, unregisters. If `.notRegistered` or `.requiresApproval`, registers.
+/// - Note: `.requiresApproval` means macOS is waiting for the user to approve
+///   in System Settings > Login Items. Calling `register()` in this state is safe
+///   and prompts the system to re-check approval.
+func performLoginItemToggle(manager: LoginItemManaging) -> LoginItemToggleResult {
+    let isCurrentlyEnabled = manager.status == .enabled
+    do {
+        if isCurrentlyEnabled {
+            try manager.unregister()
+            return .unregistered
+        } else {
+            try manager.register()
+            return .registered
+        }
+    } catch {
+        return .failed(wasEnabling: !isCurrentlyEnabled, error: error)
+    }
+}
+
 /// SwiftUI view displayed inside the status bar popover.
 ///
 /// Apple-style minimal design with toggle, launch at login, and quit.
@@ -101,25 +131,22 @@ struct ControlPopoverView: View {
     }
 
     private func toggleLaunchAtLogin() {
-        do {
-            if loginItemManager.status == .enabled {
-                try loginItemManager.unregister()
-                launchAtLogin = false
-            } else {
-                // Note: LoginItemStatus.requiresApproval means macOS is waiting
-                // for the user to approve in System Settings > Login Items.
-                // This state should not be treated as an error.
-                try loginItemManager.register()
-                launchAtLogin = true
-            }
-        } catch {
+        let result = performLoginItemToggle(manager: loginItemManager)
+        switch result {
+        case .registered:
+            launchAtLogin = true
+        case .unregistered:
+            launchAtLogin = false
+        case .failed(let wasEnabling, let error):
             Logger.lifecycle.error("SMAppService failed: \(error.localizedDescription, privacy: .public)")
             if let handler = onLoginItemError {
                 handler(error)
             } else {
                 let alert = NSAlert()
                 alert.messageText = NSLocalizedString(
-                    "Could not enable Launch at Login",
+                    wasEnabling
+                        ? "Could not enable Launch at Login"
+                        : "Could not disable Launch at Login",
                     comment: "Alert title when SMAppService registration fails"
                 )
                 alert.informativeText = error.localizedDescription

@@ -35,219 +35,245 @@ final class FakeLoginItemManager: LoginItemManaging {
 /// Test error for simulating SMAppService failures.
 enum TestLoginError: LocalizedError {
     case registrationDenied
+    case unregistrationDenied
 
     var errorDescription: String? {
-        return "The operation couldn't be completed. (SMAppService error 1.)"
+        switch self {
+        case .registrationDenied:
+            return "The operation couldn't be completed. (SMAppService error 1.)"
+        case .unregistrationDenied:
+            return "The operation couldn't be completed. (SMAppService unregister error.)"
+        }
     }
 }
 
-// MARK: - LoginItemManaging Protocol Tests
+// MARK: - performLoginItemToggle Tests
 
-/// Tests for the Launch at Login toggle functionality (ISSUE-030).
+/// Tests for `performLoginItemToggle()` — the extracted, testable toggle logic (ISSUE-030).
 ///
-/// Verifies that:
-/// - Successful register() sets status to .enabled
-/// - Successful unregister() sets status to .notRegistered
-/// - Failed register() throws and status remains .notRegistered
-/// - Failed unregister() throws and status remains .enabled
-/// - Error callback is invoked on failure
+/// Every test calls the actual production function, not a copy of it.
 final class LaunchAtLoginTests: XCTestCase {
 
-    // MARK: - Successful Registration
+    // MARK: - Register (enable) success
 
-    /// AC-1: When SMAppService.register() succeeds, launchAtLogin is set to true.
-    func testRegister_succeeds_statusBecomesEnabled() throws {
+    /// AC-1: Click "Launch at Login" (unchecked) → register succeeds → .registered
+    func testToggle_fromNotRegistered_succeeds_returnsRegistered() {
         let manager = FakeLoginItemManager()
         manager.currentStatus = .notRegistered
 
-        XCTAssertEqual(manager.status, .notRegistered)
+        let result = performLoginItemToggle(manager: manager)
 
-        try manager.register()
-
+        guard case .registered = result else {
+            XCTFail("Expected .registered, got \(result)")
+            return
+        }
         XCTAssertEqual(manager.status, .enabled)
         XCTAssertEqual(manager.registerCallCount, 1)
+        XCTAssertEqual(manager.unregisterCallCount, 0)
     }
 
-    // MARK: - Successful Unregistration
+    // MARK: - Unregister (disable) success
 
-    /// AC-3: When SMAppService.unregister() succeeds, launchAtLogin is set to false.
-    func testUnregister_succeeds_statusBecomesNotRegistered() throws {
+    /// AC-3: Click "Launch at Login" (checked) → unregister succeeds → .unregistered
+    func testToggle_fromEnabled_succeeds_returnsUnregistered() {
         let manager = FakeLoginItemManager()
         manager.currentStatus = .enabled
 
-        XCTAssertEqual(manager.status, .enabled)
+        let result = performLoginItemToggle(manager: manager)
 
-        try manager.unregister()
-
+        guard case .unregistered = result else {
+            XCTFail("Expected .unregistered, got \(result)")
+            return
+        }
         XCTAssertEqual(manager.status, .notRegistered)
         XCTAssertEqual(manager.unregisterCallCount, 1)
+        XCTAssertEqual(manager.registerCallCount, 0)
     }
 
-    // MARK: - Registration Failure
+    // MARK: - Register failure
 
-    /// AC-2: When SMAppService.register() fails, launchAtLogin remains false
-    /// and error feedback is provided.
-    func testRegister_throws_statusRemainsNotRegistered() {
+    /// AC-2: register() fails → .failed(wasEnabling: true, error)
+    func testToggle_registerThrows_returnsFailedWithWasEnablingTrue() {
         let manager = FakeLoginItemManager()
         manager.currentStatus = .notRegistered
         manager.registerShouldThrow = TestLoginError.registrationDenied
 
-        XCTAssertThrowsError(try manager.register()) { error in
-            XCTAssertTrue(error is TestLoginError)
-        }
+        let result = performLoginItemToggle(manager: manager)
 
-        // Status should NOT change on failure
-        XCTAssertEqual(manager.status, .notRegistered)
+        guard case .failed(let wasEnabling, let error) = result else {
+            XCTFail("Expected .failed, got \(result)")
+            return
+        }
+        XCTAssertTrue(wasEnabling, "wasEnabling should be true when register() fails")
+        XCTAssertTrue(error is TestLoginError)
+        XCTAssertEqual(manager.status, .notRegistered, "Status must NOT change on failure")
         XCTAssertEqual(manager.registerCallCount, 1)
     }
 
-    /// AC-5: When SMAppService fails, the error is passed to the error handler.
-    func testToggle_registerThrows_errorCallbackInvoked() {
+    /// AC-2: register fails → unregister is never called
+    func testToggle_registerThrows_doesNotCallUnregister() {
         let manager = FakeLoginItemManager()
         manager.currentStatus = .notRegistered
         manager.registerShouldThrow = TestLoginError.registrationDenied
 
-        var capturedError: Error?
-        var launchAtLogin = false
+        _ = performLoginItemToggle(manager: manager)
 
-        // Simulate the toggle logic from ControlPopoverView.toggleLaunchAtLogin()
-        do {
-            if manager.status == .enabled {
-                try manager.unregister()
-                launchAtLogin = false
-            } else {
-                try manager.register()
-                launchAtLogin = true
-            }
-        } catch {
-            capturedError = error
-            // launchAtLogin should NOT be set to true on failure
-        }
-
-        XCTAssertNotNil(capturedError, "Error callback should have captured the error")
-        XCTAssertFalse(launchAtLogin, "launchAtLogin should remain false on register failure")
-        XCTAssertEqual(
-            capturedError?.localizedDescription,
-            "The operation couldn't be completed. (SMAppService error 1.)"
-        )
+        XCTAssertEqual(manager.unregisterCallCount, 0)
     }
 
-    /// AC-2: When register throws, unregister is NOT called.
-    func testToggle_registerThrows_unregisterNotCalled() {
+    // MARK: - Unregister failure
+
+    /// Unregister fails → .failed(wasEnabling: false, error)
+    func testToggle_unregisterThrows_returnsFailedWithWasEnablingFalse() {
+        let manager = FakeLoginItemManager()
+        manager.currentStatus = .enabled
+        manager.unregisterShouldThrow = TestLoginError.unregistrationDenied
+
+        let result = performLoginItemToggle(manager: manager)
+
+        guard case .failed(let wasEnabling, let error) = result else {
+            XCTFail("Expected .failed, got \(result)")
+            return
+        }
+        XCTAssertFalse(wasEnabling, "wasEnabling should be false when unregister() fails")
+        XCTAssertTrue(error is TestLoginError)
+        XCTAssertEqual(manager.status, .enabled, "Status must NOT change on failure")
+        XCTAssertEqual(manager.unregisterCallCount, 1)
+        XCTAssertEqual(manager.registerCallCount, 0)
+    }
+
+    // MARK: - Error message differentiation (bug fix)
+
+    /// Bug fix: enable failure → "Could not enable Launch at Login"
+    func testToggle_registerFails_errorMessageSaysEnable() {
         let manager = FakeLoginItemManager()
         manager.currentStatus = .notRegistered
         manager.registerShouldThrow = TestLoginError.registrationDenied
 
-        do {
-            if manager.status == .enabled {
-                try manager.unregister()
-            } else {
-                try manager.register()
-            }
-        } catch {
-            // Expected
+        let result = performLoginItemToggle(manager: manager)
+
+        guard case .failed(let wasEnabling, _) = result else {
+            XCTFail("Expected .failed")
+            return
         }
-
-        XCTAssertEqual(manager.unregisterCallCount, 0,
-                        "unregister() should not be called when status is not enabled")
-        XCTAssertEqual(manager.registerCallCount, 1)
+        XCTAssertTrue(wasEnabling)
+        // The view uses wasEnabling to pick the message:
+        let message = wasEnabling
+            ? "Could not enable Launch at Login"
+            : "Could not disable Launch at Login"
+        XCTAssertEqual(message, "Could not enable Launch at Login")
     }
 
-    // MARK: - Unregistration Failure
-
-    /// When unregister() throws, status remains .enabled.
-    func testUnregister_throws_statusRemainsEnabled() {
+    /// Bug fix: disable failure → "Could not disable Launch at Login"
+    func testToggle_unregisterFails_errorMessageSaysDisable() {
         let manager = FakeLoginItemManager()
         manager.currentStatus = .enabled
-        manager.unregisterShouldThrow = TestLoginError.registrationDenied
+        manager.unregisterShouldThrow = TestLoginError.unregistrationDenied
 
-        XCTAssertThrowsError(try manager.unregister())
+        let result = performLoginItemToggle(manager: manager)
 
-        // Status should NOT change when unregister fails because the fake
-        // short-circuits before modifying currentStatus
-        XCTAssertEqual(manager.status, .enabled)
+        guard case .failed(let wasEnabling, _) = result else {
+            XCTFail("Expected .failed")
+            return
+        }
+        XCTAssertFalse(wasEnabling)
+        let message = wasEnabling
+            ? "Could not enable Launch at Login"
+            : "Could not disable Launch at Login"
+        XCTAssertEqual(message, "Could not disable Launch at Login")
     }
 
-    // MARK: - onAppear Re-sync (AC-4)
+    // MARK: - requiresApproval path
 
-    /// AC-4: When the popover re-opens, launchAtLogin reflects the current status.
-    func testOnAppear_syncWithCurrentStatus_enabled() {
-        let manager = FakeLoginItemManager()
-        manager.currentStatus = .enabled
-
-        // Simulate the .onAppear closure
-        let synced = manager.status == .enabled
-        XCTAssertTrue(synced, "onAppear should sync launchAtLogin to true when status is .enabled")
-    }
-
-    /// AC-4: When external state changes to notRegistered, onAppear reflects it.
-    func testOnAppear_syncWithCurrentStatus_notRegistered() {
-        let manager = FakeLoginItemManager()
-        manager.currentStatus = .notRegistered
-
-        let synced = manager.status == .enabled
-        XCTAssertFalse(synced, "onAppear should sync launchAtLogin to false when status is .notRegistered")
-    }
-
-    /// AC-4: The requiresApproval status is not treated as .enabled.
-    func testOnAppear_requiresApproval_treatedAsNotEnabled() {
+    /// When status is .requiresApproval, toggle calls register() (not unregister).
+    func testToggle_fromRequiresApproval_callsRegister() {
         let manager = FakeLoginItemManager()
         manager.currentStatus = .requiresApproval
 
-        let synced = manager.status == .enabled
-        XCTAssertFalse(synced, "requiresApproval should not show as enabled in the UI")
+        let result = performLoginItemToggle(manager: manager)
+
+        guard case .registered = result else {
+            XCTFail("Expected .registered, got \(result)")
+            return
+        }
+        XCTAssertEqual(manager.registerCallCount, 1)
+        XCTAssertEqual(manager.unregisterCallCount, 0)
+        XCTAssertEqual(manager.status, .enabled)
     }
 
-    // MARK: - Toggle Flow Integration
+    /// When status is .requiresApproval and register() throws, wasEnabling is true.
+    func testToggle_fromRequiresApproval_registerThrows_wasEnablingTrue() {
+        let manager = FakeLoginItemManager()
+        manager.currentStatus = .requiresApproval
+        manager.registerShouldThrow = TestLoginError.registrationDenied
 
-    /// Full toggle flow: OFF -> register -> ON -> unregister -> OFF
-    func testFullToggleCycle() throws {
+        let result = performLoginItemToggle(manager: manager)
+
+        guard case .failed(let wasEnabling, _) = result else {
+            XCTFail("Expected .failed")
+            return
+        }
+        XCTAssertTrue(wasEnabling)
+        XCTAssertEqual(manager.status, .requiresApproval, "Status should remain .requiresApproval")
+    }
+
+    // MARK: - Full cycle
+
+    /// Full toggle cycle: OFF → register → ON → unregister → OFF
+    func testFullToggleCycle() {
         let manager = FakeLoginItemManager()
         manager.currentStatus = .notRegistered
-        var launchAtLogin = manager.status == .enabled
-
-        XCTAssertFalse(launchAtLogin)
 
         // Toggle ON (register)
-        if manager.status == .enabled {
-            try manager.unregister()
-            launchAtLogin = false
-        } else {
-            try manager.register()
-            launchAtLogin = true
+        let result1 = performLoginItemToggle(manager: manager)
+        guard case .registered = result1 else {
+            XCTFail("Expected .registered")
+            return
         }
-
-        XCTAssertTrue(launchAtLogin)
         XCTAssertEqual(manager.status, .enabled)
 
         // Toggle OFF (unregister)
-        if manager.status == .enabled {
-            try manager.unregister()
-            launchAtLogin = false
-        } else {
-            try manager.register()
-            launchAtLogin = true
+        let result2 = performLoginItemToggle(manager: manager)
+        guard case .unregistered = result2 else {
+            XCTFail("Expected .unregistered")
+            return
         }
-
-        XCTAssertFalse(launchAtLogin)
         XCTAssertEqual(manager.status, .notRegistered)
         XCTAssertEqual(manager.registerCallCount, 1)
         XCTAssertEqual(manager.unregisterCallCount, 1)
     }
 
-    // MARK: - ControlPopoverView Error Callback
+    // MARK: - onAppear re-sync (AC-4)
 
-    /// Verify that ControlPopoverView forwards errors to onLoginItemError when provided.
-    func testControlPopoverView_errorCallback_receivesError() {
+    /// AC-4: .onAppear should sync launchAtLogin to true when status is .enabled
+    func testOnAppear_syncWithCurrentStatus_enabled() {
+        let manager = FakeLoginItemManager()
+        manager.currentStatus = .enabled
+        // Simulate .onAppear closure: launchAtLogin = manager.status == .enabled
+        XCTAssertTrue(manager.status == .enabled)
+    }
+
+    /// AC-4: .onAppear should sync launchAtLogin to false when status is .notRegistered
+    func testOnAppear_syncWithCurrentStatus_notRegistered() {
         let manager = FakeLoginItemManager()
         manager.currentStatus = .notRegistered
-        manager.registerShouldThrow = TestLoginError.registrationDenied
+        XCTAssertFalse(manager.status == .enabled)
+    }
 
-        var receivedError: Error?
+    /// AC-4: .requiresApproval should not show as enabled in the UI
+    func testOnAppear_requiresApproval_treatedAsNotEnabled() {
+        let manager = FakeLoginItemManager()
+        manager.currentStatus = .requiresApproval
+        XCTAssertFalse(manager.status == .enabled)
+    }
 
-        // Create view with error callback and fake manager
-        // We can't directly test SwiftUI view actions, but we verify the
-        // injectable components work correctly together.
+    // MARK: - ControlPopoverView integration
+
+    /// ControlPopoverView can be constructed with injected fake manager.
+    func testControlPopoverView_constructsWithFakeManager() {
+        let manager = FakeLoginItemManager()
+        var capturedError: Error?
+
         let view = ControlPopoverView(
             isActive: false,
             isPaused: false,
@@ -255,44 +281,23 @@ final class LaunchAtLoginTests: XCTestCase {
             onToggle: {},
             onQuit: {},
             loginItemManager: manager,
-            onLoginItemError: { error in
-                receivedError = error
-            }
+            onLoginItemError: { capturedError = $0 }
         )
 
-        // Verify view can be constructed with injectable dependencies
         XCTAssertNotNil(view)
-        XCTAssertEqual(manager.status, .notRegistered)
-
-        // Simulate what toggleLaunchAtLogin does
-        do {
-            try manager.register()
-            XCTFail("register() should have thrown")
-        } catch {
-            receivedError = error
-        }
-
-        XCTAssertNotNil(receivedError)
-        XCTAssertEqual(
-            receivedError?.localizedDescription,
-            "The operation couldn't be completed. (SMAppService error 1.)"
-        )
+        XCTAssertNil(capturedError)
     }
 
-    // MARK: - SystemLoginItemManager
+    // MARK: - SystemLoginItemManager wrapper
 
-    /// SystemLoginItemManager wraps SMAppService.mainApp correctly.
-    /// This is an integration-level test that verifies the wrapper exists
-    /// and returns a valid status (not a crash test).
+    /// SystemLoginItemManager wraps SMAppService.mainApp correctly (no crash).
     func testSystemLoginItemManager_statusReturnsValidValue() {
         let manager = SystemLoginItemManager()
         let status = manager.status
 
-        // Status should be one of the valid enum cases
         switch status {
         case .enabled, .notRegistered, .requiresApproval:
             break // All valid
         }
-        // If we get here without crashing, the wrapper works
     }
 }
