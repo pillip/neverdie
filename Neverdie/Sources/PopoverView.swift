@@ -1,5 +1,25 @@
+import os
 import ServiceManagement
 import SwiftUI
+
+/// Default `LoginItemManaging` implementation wrapping `SMAppService.mainApp`.
+struct SystemLoginItemManager: LoginItemManaging {
+    var status: LoginItemStatus {
+        switch SMAppService.mainApp.status {
+        case .enabled: return .enabled
+        case .requiresApproval: return .requiresApproval
+        default: return .notRegistered
+        }
+    }
+
+    func register() throws {
+        try SMAppService.mainApp.register()
+    }
+
+    func unregister() throws {
+        try SMAppService.mainApp.unregister()
+    }
+}
 
 /// SwiftUI view displayed inside the status bar popover.
 ///
@@ -10,8 +30,10 @@ struct ControlPopoverView: View {
     let hasError: Bool
     let onToggle: () -> Void
     let onQuit: () -> Void
+    var loginItemManager: LoginItemManaging = SystemLoginItemManager()
+    var onLoginItemError: ((Error) -> Void)?
 
-    @State private var launchAtLogin: Bool = SMAppService.mainApp.status == .enabled
+    @State private var launchAtLogin: Bool = false
     @State private var hoveredRow: String?
 
     var body: some View {
@@ -46,6 +68,9 @@ struct ControlPopoverView: View {
             }
         }
         .frame(width: 220)
+        .onAppear {
+            launchAtLogin = loginItemManager.status == .enabled
+        }
     }
 
     private func rowButton<Content: View>(
@@ -77,15 +102,31 @@ struct ControlPopoverView: View {
 
     private func toggleLaunchAtLogin() {
         do {
-            if SMAppService.mainApp.status == .enabled {
-                try SMAppService.mainApp.unregister()
+            if loginItemManager.status == .enabled {
+                try loginItemManager.unregister()
                 launchAtLogin = false
             } else {
-                try SMAppService.mainApp.register()
+                // Note: LoginItemStatus.requiresApproval means macOS is waiting
+                // for the user to approve in System Settings > Login Items.
+                // This state should not be treated as an error.
+                try loginItemManager.register()
                 launchAtLogin = true
             }
         } catch {
-            // silently fail
+            Logger.lifecycle.error("SMAppService failed: \(error.localizedDescription, privacy: .public)")
+            if let handler = onLoginItemError {
+                handler(error)
+            } else {
+                let alert = NSAlert()
+                alert.messageText = NSLocalizedString(
+                    "Could not enable Launch at Login",
+                    comment: "Alert title when SMAppService registration fails"
+                )
+                alert.informativeText = error.localizedDescription
+                alert.alertStyle = .warning
+                alert.addButton(withTitle: NSLocalizedString("OK", comment: "Alert dismiss button"))
+                alert.runModal()
+            }
         }
     }
 }
