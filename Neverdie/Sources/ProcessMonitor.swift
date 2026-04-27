@@ -1,13 +1,16 @@
 import Darwin
+import Darwin.POSIX
 import Foundation
 import os
 
 /// Monitors running processes for Claude Code instances using libproc APIs.
 ///
-/// Uses `proc_listallpids()` to enumerate all PIDs and `proc_name()` to match
-/// against known Claude Code process names. Polling is Timer-based with two
-/// intervals: 30s when active (for responsive auto-OFF) and 90s when inactive
-/// (to reduce timer wake-ups and allow macOS App Nap).
+/// Uses `proc_listallpids()` to enumerate all PIDs and `proc_pidinfo(PROC_PIDTBSDINFO)`
+/// to read each process's comm name. `proc_name()` silently returns 0 for certain
+/// native binaries (including Claude Code installed via Homebrew), so we use
+/// `proc_pidinfo` which reliably returns the kernel comm field.
+/// Polling is Timer-based with two intervals: 30s when active (for responsive
+/// auto-OFF) and 90s when inactive (to reduce timer wake-ups and allow App Nap).
 final class ProcessMonitor: ProcessMonitoring {
     /// Known process names for Claude Code (exact match only).
     static let targetNames: Set<String> = ["claude", "claude-code"]
@@ -54,16 +57,21 @@ final class ProcessMonitor: ProcessMonitoring {
 
         let actualCount = Int(pidCount)
         var matchCount = 0
-        var nameBuffer = [CChar](repeating: 0, count: Int(MAXCOMLEN) + 1)
+        var info = proc_bsdinfo()
 
         for i in 0..<actualCount {
             let pid = pids[i]
             guard pid > 0 else { continue }
 
-            let nameLength = proc_name(pid, &nameBuffer, UInt32(nameBuffer.count))
-            guard nameLength > 0 else { continue }
+            let infoSize = Int32(MemoryLayout<proc_bsdinfo>.size)
+            let ret = proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, infoSize)
+            guard ret > 0 else { continue }
 
-            let name = String(cString: nameBuffer)
+            let name = withUnsafePointer(to: info.pbi_comm) { ptr in
+                ptr.withMemoryRebound(to: CChar.self, capacity: Int(MAXCOMLEN)) { cStr in
+                    String(cString: cStr)
+                }
+            }
             if Self.targetNames.contains(name) {
                 matchCount += 1
             }
