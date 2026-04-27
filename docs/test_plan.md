@@ -30,6 +30,7 @@
 | Flow | Likelihood | Impact | Risk | Coverage Level |
 |------|-----------|--------|------|----------------|
 | Sleep prevention (IOPMAssertion create/release) | Medium | Critical | **High** | Unit + Integration + Manual |
+| Clamshell + power source interaction (FR-019) | Medium | Critical | **High** | Unit + Integration + Manual |
 | Auto-OFF when all Claude processes end | Medium | High | **High** | Unit + Integration |
 | Assertion cleanup on quit/signal/crash | Low | Critical | **High** | Unit + Integration + Manual |
 | Toggle ON/OFF (click interaction) | Low | Critical | **High** | Unit + Integration + E2E |
@@ -67,6 +68,86 @@
 
 ---
 
+### Flow: Clamshell + Power Source Interaction (FR-019)
+
+- Risk level: **High**
+- Related requirements: FR-005, FR-007, FR-019, NFR-005
+- Rationale: This is the battery-correctness fix. Getting the reconciliation wrong has two distinct failure modes, both critical: (a) assertion is not released when it should be -> battery drains to 0 on a closed-lid MacBook (the original bug); (b) assertion is released when it should be held -> user's long-running Claude Code task is interrupted by sleep on AC-powered clamshell. The full (isActive x lid x power) matrix plus every transition edge must be tested.
+
+#### State Matrix (steady state)
+
+| `isActive` | `isLidClosed` | `powerSource` | Expected assertion | Expected `isPausedDueToClamshell` |
+|------------|---------------|---------------|--------------------|----------------------------------|
+| false      | false         | AC            | released           | false                            |
+| false      | false         | battery       | released           | false                            |
+| false      | true          | AC            | released           | false                            |
+| false      | true          | battery       | released           | false                            |
+| true       | false         | AC            | held               | false                            |
+| true       | false         | battery       | held               | false                            |
+| true       | true          | AC            | held               | false                            |
+| true       | true          | battery       | **released**       | **true**                         |
+
+#### Test Cases
+
+| ID | Precondition | Action | Expected Result | Type |
+|----|-------------|--------|-----------------|------|
+| TC-110 | `isActive == true`, lid open, battery power, assertion held | `FakeClamshellObserver.simulateClose()` | `SleepManager.allowSleep()` called exactly once; assertion released; `isActive == true`; `isPausedDueToClamshell == true` | Unit |
+| TC-111 | Continuation of TC-110 (paused) | `FakeClamshellObserver.simulateOpen()` | `SleepManager.preventSleep()` called; assertion re-acquired; `isPausedDueToClamshell == false`; `isActive == true` | Unit |
+| TC-112 | `isActive == true`, lid open, AC power, assertion held | `FakeClamshellObserver.simulateClose()` | No call to `allowSleep()`; assertion still held; `isPausedDueToClamshell == false` | Unit |
+| TC-113 | `isActive == true`, lid closed, battery, paused (TC-110 end state) | `FakePowerSourceMonitor.simulateTransition(.ac)` | `SleepManager.preventSleep()` called; `isPausedDueToClamshell == false` | Unit |
+| TC-114 | `isActive == true`, lid closed, AC, assertion held | `FakePowerSourceMonitor.simulateTransition(.battery)` | `SleepManager.allowSleep()` called; `isPausedDueToClamshell == true` | Unit |
+| TC-115 | `isActive == false`, any lid/power combination | Send any `ClamshellObserver` / `PowerSourceMonitor` event | Zero calls to `preventSleep()` or `allowSleep()` | Unit |
+| TC-116 | `isActive == true`, paused (lid closed on battery) | User selects "Quit Neverdie" (triggers `cleanup()`) | `allowSleep()` safe no-op, observers stopped, notification ports destroyed, process exits cleanly, `pmset -g assertions` shows no Neverdie assertion | Integration |
+| TC-117 | `isActive == true`, paused (lid closed on battery) | User clicks menu bar icon to toggle OFF | `isActive == false`, `isPausedDueToClamshell == false`, no spurious `allowSleep()` failure | Unit |
+| TC-118 | `ClamshellObserver` fresh init | Invoke the real `start()` on hardware | Callback fires on physical lid open/close within 1s; `isLidClosed` reflects the actual state | Integration |
+| TC-119 | `PowerSourceMonitor` fresh init | Invoke the real `start()` on hardware | Initial `currentSource` matches `pmset -g batt` output; transitions fire within 1s of plug/unplug | Integration |
+| TC-120 | MacBook on battery, activate Neverdie | Close the lid | System enters sleep within ~30s; `pmset -g assertions` on next wake shows no Neverdie assertion during the sleep window (verify via `pmset -g log`) | Manual |
+| TC-121 | MacBook on AC + external display, activate Neverdie | Close the lid | Clamshell mode engages, session continues on external display, `pmset -g assertions` still shows Neverdie assertion | Manual |
+| TC-122 | MacBook on battery with lid closed (paused), assertion released | Plug in MagSafe/USB-C power | Within one observer cycle, `pmset -g assertions` shows the Neverdie assertion again (user did not open the lid) | Manual |
+| TC-123 | MacBook on AC with lid closed (assertion held) | Unplug power | Within one observer cycle, `pmset -g assertions` shows no Neverdie assertion | Manual |
+| TC-124 | 50-cycle stress | Alternate lid-open / lid-close and AC/battery 50 times each via Instruments Leaks template | No IOKit notification port leaks; no growth in `mach_vm_region` pages | Integration (nightly) |
+| TC-125 | Desktop Mac (no battery) | Launch Neverdie, toggle ON | `PowerSourceMonitor.currentSource == .ac` permanently; clamshell observer is inert (no lid); behavior identical to pre-FR-019 | Manual |
+| TC-126 | `isActive == true`, lid open, battery, assertion held | `isPausedDueToClamshell` transitions to `true` (IOKit callback) | StatusBarController stops animation, shows static OFF icon at 50% opacity, VoiceOver announces "Neverdie paused -- lid closed on battery" | Unit |
+| TC-127 | `isActive == true`, paused (icon dimmed) | `isPausedDueToClamshell` transitions to `false` (lid open or AC reconnect) | StatusBarController resumes animation, opacity returns to 100%, VoiceOver announces "Neverdie resumed" | Unit |
+| TC-128 | `isActive == false`, `isPausedDueToClamshell` transitions to `false` | StatusBarController observation fires | No animation started, icon stays at static OFF, opacity stays 1.0 | Unit |
+| TC-129 | `isActive == true`, 50 rapid lid open/close cycles, final close on battery | Execute rapid cycles via FakeClamshellObserver | `isPausedDueToClamshell == true`, assertion released, `preventSleepCallCount - allowSleepCallCount` is 0 | Unit |
+| TC-130 | `isActive == true`, lid closed, 50 rapid AC/battery transitions, final battery | Execute rapid cycles via FakePowerSourceMonitor | `isPausedDueToClamshell == true`, assertion released | Unit |
+| TC-131 | `isActive == true`, 100 interleaved lid + power events | Execute via fakes, random order | Final state matches last (lid, power) pair per state matrix; call-count balance is 0 or 1 | Unit |
+
+---
+
+### Flow: Reactive StatusBarController Update (FR-019, NFR-007)
+
+- Risk level: **Medium**
+- Related requirements: FR-019, NFR-007
+- Rationale: Without reactive wiring, the paused state is only visible when the user opens the popover or toggles manually. Automatic VoiceOver announcements are required per the accessibility spec, and the icon dimming provides critical visual feedback that Neverdie has suspended its assertion. Directly addresses RL-001.
+
+#### Test Cases
+
+| ID | Precondition | Action | Expected Result | Type |
+|----|-------------|--------|-----------------|------|
+| TC-126 | `isActive == true`, lid open, battery, assertion held | `isPausedDueToClamshell` transitions to `true` (IOKit callback) | StatusBarController stops animation, shows static OFF icon at 50% opacity, VoiceOver announces "Neverdie paused -- lid closed on battery" | Unit |
+| TC-127 | `isActive == true`, paused (icon dimmed) | `isPausedDueToClamshell` transitions to `false` (lid open or AC reconnect) | StatusBarController resumes animation, opacity returns to 100%, VoiceOver announces "Neverdie resumed" | Unit |
+| TC-128 | `isActive == false`, `isPausedDueToClamshell` transitions to `false` | StatusBarController observation fires | No animation started, icon stays at static OFF, opacity stays 1.0 | Unit |
+
+---
+
+### Flow: Rapid-Cycle Idempotency (FR-019 stress)
+
+- Risk level: **Medium**
+- Related requirements: FR-019, NFR-005
+- Rationale: Guards against race conditions or state drift in the reconciliation logic when IOKit callbacks fire in rapid succession. Unit-test counterpart to TC-124 (Instruments leak test).
+
+#### Test Cases
+
+| ID | Precondition | Action | Expected Result | Type |
+|----|-------------|--------|-----------------|------|
+| TC-129 | `isActive == true`, 50 rapid lid open/close cycles, final close on battery | Execute rapid cycles via FakeClamshellObserver | `isPausedDueToClamshell == true`, assertion released, `preventSleepCallCount - allowSleepCallCount` is 0 | Unit |
+| TC-130 | `isActive == true`, lid closed, 50 rapid AC/battery transitions, final battery | Execute rapid cycles via FakePowerSourceMonitor | `isPausedDueToClamshell == true`, assertion released | Unit |
+| TC-131 | `isActive == true`, 100 interleaved lid + power events | Execute via fakes, random order | Final state matches last (lid, power) pair per state matrix; call-count balance is 0 or 1 | Unit |
+
+---
+
 ### Flow: Auto-OFF When All Claude Processes End
 
 - Risk level: **High**
@@ -84,6 +165,26 @@
 | TC-014 | Mode ON, 1 claude process running | Process terminates and new one starts within same 30s poll interval | Poll returns 1 (or more). No auto-OFF. Count never reached zero at poll time | Unit |
 | TC-015 | Mode ON, processes detected | Process detection fails (mock `proc_listallpids` error) | Auto-OFF does NOT trigger. `processCount` shows last known value or 0 with error flag. Polling continues | Unit |
 | TC-016 | Mode OFF | Poll timer fires | Timer should not be running, or poll result is ignored. No state change | Unit |
+
+---
+
+### Flow: Auto-ON When Claude Code Process Detected (FR-020)
+
+- Risk level: **High**
+- Related requirements: FR-013, FR-020
+- Rationale: Auto-ON is the complementary feature to auto-OFF. Incorrect auto-ON (false positives) would create unwanted assertions; failure to auto-ON defeats the hands-free goal.
+
+#### Test Cases
+
+| ID | Precondition | Action | Expected Result | Type |
+|----|-------------|--------|-----------------|------|
+| TC-140 | Mode OFF, no processes | Poll detects 1 `claude` process | `isActive` becomes `true`, `activationSource == .auto`, `claudeProcessesEverDetected == true`, assertion created via `reconcileAssertion()`, VoiceOver "Neverdie ON -- Claude Code detected" | Unit |
+| TC-141 | Mode OFF, no processes | Poll detects 2 processes (`claude` + `claude-code`) | `isActive` becomes `true`, `processCount == 2` | Unit |
+| TC-142 | Mode ON (already active) | Poll detects processes | No duplicate activation. `isActive` remains `true`. `processCount` updated | Unit |
+| TC-143 | Mode OFF, auto-ON triggered | Subsequently all processes terminate | Auto-OFF triggers (`claudeProcessesEverDetected` was set by auto-ON) | Unit |
+| TC-144 | Mode OFF, lid closed on battery | Poll detects 1 `claude` process | `isActive == true`, `isPausedDueToClamshell == true`, assertion NOT held | Unit |
+| TC-145 | Mode OFF | Poll detects processes matching "claudex" or "myclaude" | No auto-ON triggered (exact name match only). `isActive` remains `false` | Unit |
+| TC-146 | User manually toggled OFF 10s ago | Poll detects `claude` process at next 30s cycle | Auto-ON fires. `isActive == true` (manual OFF is not sticky) | Unit |
 
 ---
 

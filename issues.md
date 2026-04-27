@@ -1196,6 +1196,203 @@ Delete the new test methods. No production code is affected.
 
 ---
 
+### ISSUE-027: Implement ProcessMonitor with proc_listallpids and wire auto-ON/auto-OFF into AppState
+- Track: product
+- UI: false
+- Manual: false
+- PRD-Ref: FR-013, FR-014, FR-020
+- Priority: P0
+- Estimate: 1.5d
+- Status: done
+- Owner:
+- Branch: issue/ISSUE-027-process-monitor-auto-on-off
+- GH-Issue: https://github.com/pillip/neverdie/issues/51
+- PR: https://github.com/pillip/neverdie/pull/52
+- Depends-On: ISSUE-002, ISSUE-003
+
+#### Goal
+ProcessMonitor detects running Claude Code processes via `proc_listallpids()` + `proc_name()`, and AppState uses the process count to automatically switch Neverdie ON when a Claude process appears (auto-ON) and OFF when all Claude processes terminate (auto-OFF), making the app fully hands-free.
+
+#### Scope (In/Out)
+- In: Full ProcessMonitor implementation using `proc_listallpids()` + `proc_name()` with 30-second Timer-based polling; `ProcessMonitoring` protocol in Protocols.swift; `FakeProcessMonitor` for tests; AppState integration for auto-ON (activate when OFF and processes detected) and auto-OFF (deactivate when ON, processes were detected, and count drops to 0); `ActivationSource` enum (.manual, .auto); `claudeProcessesEverDetected` tracking; VoiceOver announcements for auto-ON/auto-OFF; interaction with `reconcileAssertion()` for clamshell correctness; unit tests for ProcessMonitor and auto-ON/auto-OFF integration
+- Out: Token monitoring changes, UI/popover changes, hover interaction changes, settings/preferences for poll interval
+
+#### Acceptance Criteria (DoD)
+- [x] Given the app is running, when `ProcessMonitor.pollOnce()` is called, then it returns the count of processes with exact name match on `claude` or `claude-code` (not substring -- rejects `claudex`, `myclaude`)
+- [x] Given polling is started, when 30 seconds elapse, then the callback fires with updated count
+- [x] Given `proc_listallpids` fails, then `pollOnce()` returns 0, logs error via os.Logger, and does not crash
+- [x] Given Neverdie is ON and `claudeProcessesEverDetected == true`, when polling detects 0 claude processes, then AppState deactivates (isActive=false), assertion released via `reconcileAssertion()`, animation stopped, VoiceOver announces "Neverdie OFF -- all sessions ended"
+- [x] Given Neverdie is ON via manual toggle with no claude processes ever detected, when polling detects 0, then Neverdie stays ON (manual override respected)
+- [x] Given Neverdie is ON and 2 claude processes running, when 1 terminates, then Neverdie stays ON (count > 0)
+- [x] Given Neverdie is OFF, when polling detects >= 1 claude process, then AppState activates automatically (isActive=true, activationSource=.auto), assertion created via `reconcileAssertion()`, animation starts, VoiceOver announces "Neverdie ON -- Claude Code detected"
+- [x] Given auto-ON triggers while lid is closed on battery, then isActive becomes true but assertion is NOT held (reconcileAssertion handles it), isPausedDueToClamshell set
+- [x] Given auto-OFF triggers while isPausedDueToClamshell==true, then isActive becomes false, isPausedDueToClamshell cleared
+
+#### Implementation Notes
+- **Rewrite**: `Neverdie/Sources/ProcessMonitor.swift` -- full implementation with `proc_listallpids()` + `proc_name()` from Darwin/libproc. Do NOT use NSRunningApplication (only lists GUI apps) or shell commands (no `pgrep`, no `ps`).
+- **Modify**: `Neverdie/Sources/Protocols.swift` -- add `ProcessMonitoring` protocol with `pollOnce() -> Int`, `startPolling(onUpdate:)`, `stopPolling()`.
+- **Modify**: `Neverdie/Sources/AppState.swift` -- add `processCount: Int`, `claudeProcessesEverDetected: Bool`, `activationSource: ActivationSource` enum (.manual, .auto). Auto-OFF logic: only when `isActive && claudeProcessesEverDetected && processCount == 0`. Auto-ON logic: when `!isActive && processCount > 0`. After activate/deactivate, call `reconcileAssertion()` to respect clamshell/power state.
+- **Modify**: `Neverdie/Sources/NeverdieApp.swift` -- create ProcessMonitor, inject into AppState, start polling on launch.
+- Timer-based polling on main run loop with 30-second interval (`Timer.scheduledTimer`, tolerance ~5s for energy efficiency).
+- Process matching: exact name match on `claude` and `claude-code`. NOT substring.
+- Per RL-001: ensure all UI consumers (StatusBarController) react to auto-ON/auto-OFF state changes, not just manual toggles.
+- Per RL-002: if popover is open during auto-ON/auto-OFF, ensure state updates are reactive (pass `@Observable` AppState, not snapshot).
+
+#### Tests
+- [x] Unit: `pollOnce()` returns correct count for mock process list containing "claude", "claude-code", "Finder"
+- [x] Unit: `pollOnce()` returns 0 for process list with "claudex", "myclaude" (exact match only)
+- [x] Unit: `pollOnce()` returns 0 and logs error when `proc_listallpids` fails (mocked)
+- [x] Unit: auto-OFF triggers when `isActive && claudeProcessesEverDetected && processCount == 0`
+- [x] Unit: auto-OFF does NOT trigger when `claudeProcessesEverDetected == false`
+- [x] Unit: auto-ON triggers when `!isActive && processCount > 0`
+- [x] Unit: auto-ON sets `activationSource = .auto`
+- [x] Unit: auto-ON while clamshell-on-battery results in isActive=true, isPausedDueToClamshell=true, assertion NOT held
+- [x] Unit: auto-OFF while isPausedDueToClamshell clears the paused state
+- [x] Integration: `stopPolling()` invalidates timer, no further callbacks fire
+
+#### Rollback
+Revert ProcessMonitor.swift to stub, revert AppState.swift and Protocols.swift changes. Auto-ON/auto-OFF behavior is removed; app returns to manual-only toggle.
+
+## Phase 7: Energy Optimization
+
+### ISSUE-028: Reduce ProcessMonitor polling frequency when Neverdie is OFF and enable App Nap
+- Track: product
+- UI: false
+- Manual: false
+- PRD-Ref: NFR-004, NFR-005
+- Priority: P2
+- Estimate: 0.5d
+- Status: done
+- Owner:
+- Branch: issue/ISSUE-028-polling-interval-optimization
+- GH-Issue: https://github.com/pillip/neverdie/issues/54
+- PR: https://github.com/pillip/neverdie/pull/55
+- Depends-On: ISSUE-027
+
+#### Goal
+When Neverdie is OFF, ProcessMonitor uses a longer polling interval (>= 60s) to reduce timer wake-ups and allow macOS App Nap; when Neverdie is ON, the current 30-second interval is preserved for timely auto-OFF detection.
+
+#### Scope (In/Out)
+- In: Longer polling interval (60-120s) when Neverdie is OFF; switch to 30s on auto-ON; switch back to longer interval on auto-OFF or manual toggle OFF; timer tolerance scaled to interval; unit tests for interval switching behavior
+- Out: Event-based process detection (e.g., DispatchSource.process), changes to the ProcessMonitoring protocol interface, UI changes
+
+#### Acceptance Criteria (DoD)
+- [ ] Given Neverdie is OFF, when ProcessMonitor is polling, then the interval is >= 60 seconds
+- [ ] Given Neverdie transitions from OFF to ON (auto-ON), then the polling interval switches to 30 seconds
+- [ ] Given Neverdie transitions from ON to OFF (auto-OFF or manual), then the polling interval switches to the longer interval
+- [ ] Given Neverdie is OFF with the longer polling interval, when Activity Monitor is checked, then App Nap shows "Yes" or Energy Impact is lower than before
+- [ ] Given the polling interval changes, when stopPolling() is called, then the timer is correctly invalidated regardless of current interval
+
+#### Implementation Notes
+- Modify `Neverdie/Sources/ProcessMonitor.swift`: Add a `pollIntervalInactive` property (e.g., 90 seconds). Add a method to switch intervals (invalidate current timer, start new one with different interval). Timer tolerance should scale with the interval (e.g., tolerance = interval * 0.15).
+- Modify `Neverdie/Sources/AppState.swift`: After auto-ON/auto-OFF and manual toggle, notify ProcessMonitor to switch intervals via a new protocol method or direct call.
+- Consider using `ProcessInfo.processInfo.beginActivity(options:reason:)` with `.idleSystemSleepDisabled` only when active, to further improve energy profile.
+
+#### Tests
+- [ ] Unit: FakeProcessMonitor tracks interval changes
+- [ ] Unit: auto-ON switches to fast polling interval
+- [ ] Unit: auto-OFF switches to slow polling interval
+- [ ] Unit: manual toggle OFF switches to slow polling interval
+- [ ] Unit: stopPolling works correctly regardless of current interval
+
+#### Rollback
+Revert ProcessMonitor.swift and AppState.swift changes. Polling returns to fixed 30-second interval regardless of state.
+
+---
+
+### ISSUE-029: Replace StatusBarController frameObserverTimer with observation-based frame updates
+- Track: product
+- UI: false
+- Manual: false
+- PRD-Ref: NFR-004, NFR-005
+- Priority: P2
+- Estimate: 0.5d
+- Status: done
+- Owner:
+- Branch: issue/ISSUE-029-remove-frame-observer-timer
+- GH-Issue: https://github.com/pillip/neverdie/issues/53
+- PR: https://github.com/pillip/neverdie/pull/56
+- Depends-On: ISSUE-027
+
+#### Goal
+The frameObserverTimer in StatusBarController is removed and replaced with observation-based icon updates that fire only when AnimationManager.currentFrame changes, eliminating one of two 6fps timers during ON state.
+
+#### Scope (In/Out)
+- In: Make AnimationManager's `currentFrame` observable (via `@Observable` or callback pattern); remove `frameObserverTimer`, `startFrameObserver()`, and `stopFrameObserver()` from StatusBarController; replace with observation-based icon updates; update existing tests that check `isFrameObserverActive`
+- Out: Changes to animation frame rate, animation frame assets, changes to AnimationManager's Timer internals
+
+#### Acceptance Criteria (DoD)
+- [ ] Given Neverdie is ON with animation running, when AnimationManager advances a frame, then StatusBarController updates the icon without a separate polling timer
+- [ ] Given Neverdie transitions from ON to OFF, then no frame observation overhead remains
+- [ ] Given the frame observer timer is removed, when the app is profiled, then there is one fewer timer firing at 6fps during ON state
+- [ ] Given existing StatusBarClamshellTests, when the frame observer timer assertions are updated, then all tests pass
+
+#### Implementation Notes
+- **Option A (preferred)**: Make `AnimationManager` conform to `@Observable`. `currentFrame` is already `private(set) var` -- marking the class `@Observable` makes it trackable. StatusBarController can use `withObservationTracking` on `animationManager.currentFrame` (same pattern as AppState observation).
+- **Option B**: Add a `onFrameChange: ((NSImage) -> Void)?` callback to AnimationManager, called from `advanceFrame()`. StatusBarController sets this callback instead of running its own timer.
+- Modify `Neverdie/Sources/StatusBarController.swift`: Remove `frameObserverTimer`, `startFrameObserver()`, `stopFrameObserver()`. Add frame observation in the existing `scheduleObservationTracking()` or a separate observation chain.
+- Update `NeverdieTests/StatusBarClamshellTests.swift`: Remove assertions on `isFrameObserverActive`. Replace with assertions that verify icon updates happen reactively.
+- The `isFrameObserverActive` test helper can be removed or repurposed.
+
+#### Tests
+- [ ] Unit: icon updates when AnimationManager.currentFrame changes (without polling timer)
+- [ ] Unit: no observation overhead when animation is stopped
+- [ ] Unit: existing StatusBarClamshellTests pass with updated assertions
+- [ ] Unit: transition animations still trigger icon updates correctly
+
+#### Rollback
+Revert StatusBarController.swift and AnimationManager changes. Restore frameObserverTimer-based polling for icon updates.
+
+---
+
+## Phase 8: Bug Fixes
+
+### ISSUE-030: Fix "Launch at Login" silently failing and not reflecting external state changes
+- Track: product
+- UI: true
+- Manual: false
+- PRD-Ref: FR-004, US-008
+- Priority: P1
+- Estimate: 0.5d
+- Status: done
+- Owner:
+- Branch: issue/ISSUE-030-fix-launch-at-login
+- GH-Issue: https://github.com/pillip/neverdie/issues/57
+- PR: https://github.com/pillip/neverdie/pull/58
+- Depends-On: ISSUE-016
+
+#### Goal
+`toggleLaunchAtLogin()` in PopoverView.swift silently swallows `SMAppService` errors and never shows user feedback on failure. Additionally, the `@State launchAtLogin` bool is evaluated only once at view creation, so external state changes are never reflected in the UI.
+
+#### Scope (In/Out)
+- In: Replace the silent `catch` block with an NSAlert presenting "Could not enable Launch at Login" and the error's localised description; add an `os.Logger` call at `.error` level in the same catch block (category "lifecycle"); add `.onAppear { launchAtLogin = SMAppService.mainApp.status == .enabled }` to re-sync state when the popover re-opens; note the `.requiresApproval` status in a code comment
+- Out: Changes to SMAppService entitlement configuration, Login Item plist, or any other menu item behaviour
+
+#### Acceptance Criteria (DoD)
+- [ ] Given the user clicks "Launch at Login" (unchecked), when `SMAppService.register()` succeeds, then a checkmark appears next to the menu item and the app is registered as a login item
+- [ ] Given the user clicks "Launch at Login" (unchecked), when `SMAppService.register()` fails, then an NSAlert is presented with the title "Could not enable Launch at Login" and `error.localizedDescription` as the informative text
+- [ ] Given the user clicks "Launch at Login" (checked), when `SMAppService.unregister()` succeeds, then the checkmark disappears and the app is no longer registered
+- [ ] Given the popover re-opens after an external state change (e.g., user toggled the entry in System Settings), when the view appears, then `launchAtLogin` reflects the current `SMAppService.mainApp.status`
+- [ ] Given any `SMAppService` failure, when the error is caught, then it is logged via `os.Logger` at `.error` level with category "lifecycle"
+
+#### Implementation Notes
+- **Modify**: `Neverdie/Sources/PopoverView.swift`
+- Replace the `// silently fail` catch block with: (1) an `os.Logger(subsystem:, category: "lifecycle").error("SMAppService failed: \(error.localizedDescription)")` call, and (2) an `NSAlert` configured with `messageText = "Could not enable Launch at Login"` and `informativeText = error.localizedDescription`, presented via `alert.runModal()`
+- Add `.onAppear { launchAtLogin = SMAppService.mainApp.status == .enabled }` to the outermost view in `PopoverView.body` to re-sync state on every popover open
+- Add a comment near the `else` branch noting that `SMAppService.mainApp.status == .requiresApproval` means macOS is waiting for the user to approve in System Settings > Login Items — this state should not be treated as an error
+- Per ISSUE-016 original spec and FR-004: error feedback to the user is a hard requirement, not optional
+
+#### Tests
+- [ ] Unit: when `SMAppService.register()` throws, `launchAtLogin` remains false and an NSAlert is presented
+- [ ] Unit: when `SMAppService.register()` succeeds, `launchAtLogin` is set to true
+- [ ] Unit: when `SMAppService.unregister()` succeeds, `launchAtLogin` is set to false
+- [ ] Unit: when `SMAppService` throws, the error is passed to `os.Logger` at `.error` level
+
+#### Rollback
+Revert `Neverdie/Sources/PopoverView.swift` to the previous version. Silent failure and stale `@State` return; no user-visible regression beyond restoring the original bug.
+
+---
+
 ## Dependency Graph
 
 ```
@@ -1221,6 +1418,11 @@ ISSUE-020 (Developer ID - Manual) -- ISSUE-021 (CI/CD) -- ISSUE-022 (Homebrew)
 
 ISSUE-024 (Clamshell battery) -- ISSUE-025 (StatusBar reactive update)
                               +-- ISSUE-026 (Rapid-cycle stress test)
+
+ISSUE-002 (AppState) + ISSUE-003 (SleepManager) -- ISSUE-027 (ProcessMonitor auto-ON/OFF)
+
+ISSUE-027 -- ISSUE-028 (Polling optimization)
+ISSUE-027 -- ISSUE-029 (Frame observer removal)
 ```
 
 ### Parallel Work Opportunities
@@ -1246,7 +1448,9 @@ ISSUE-001 -> ISSUE-002 + ISSUE-003 -> ISSUE-005 -> ISSUE-006 -> ISSUE-007 (Phase
 | Phase 4: Monitoring | ISSUE-013 through ISSUE-016 | 4d |
 | Phase 4.5: Polish | ISSUE-017 through ISSUE-019, ISSUE-024 through ISSUE-026 | 4d |
 | Phase 5: Distribution | ISSUE-020 through ISSUE-023 | 3.5d |
-| **Total** | **26 issues** | **21d** |
+| Phase 6: Hands-Free | ISSUE-027 | 1.5d |
+| Phase 7: Energy Optimization | ISSUE-028, ISSUE-029 | 1d |
+| **Total** | **29 issues** | **23.5d** |
 
 ### FR/US Coverage Traceability
 
@@ -1280,6 +1484,8 @@ ISSUE-001 -> ISSUE-002 + ISSUE-003 -> ISSUE-005 -> ISSUE-006 -> ISSUE-007 (Phase
 | US-008 | ISSUE-016 |
 | US-009 | ISSUE-023 |
 | FR-019 | ISSUE-024, ISSUE-025, ISSUE-026 |
-| NFR-005 | ISSUE-024 |
+| NFR-004 | ISSUE-028, ISSUE-029 |
+| NFR-005 | ISSUE-024, ISSUE-028 |
 | NFR-006 | ISSUE-020, ISSUE-021 |
+| FR-020 | ISSUE-027 |
 | NFR-007 | ISSUE-019, ISSUE-025 |

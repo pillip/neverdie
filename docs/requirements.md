@@ -252,6 +252,30 @@ macOS developers (macOS 14 Sonoma or later) who routinely use Claude Code CLI an
   - [ ] Sessions are distinguishable (e.g., by PID or working directory).
 - **Dependencies**: FR-016, FR-017, FR-013
 
+#### FR-019: Power-source-aware clamshell handling for the sleep assertion
+- **Description**: The sleep assertion created in FR-005 must be automatically released when the MacBook lid is closed while the system is running on battery power, and automatically re-acquired when the lid is reopened or AC power is reconnected. The user's intent (`AppState.isActive == true`) is preserved across these transitions -- this is an assertion suspend/resume, not a user-initiated OFF. This requirement exists to satisfy NFR-005 (battery impact): without it, the assertion would keep the system out of clamshell sleep on battery, draining the battery to 0 with no way for the user to avoid it short of quitting the app. This is a scoped compromise with the "Clamshell mode" Out of Scope entry: Neverdie does NOT *support* keep-awake with the lid closed on battery; it *respects* the closed lid by releasing the assertion so macOS can clamshell-sleep normally.
+- **Priority**: Must
+- **Acceptance Criteria**:
+  - [ ] Given `isActive == true` and power source is battery, when the lid closes, then the IOPMAssertion is released and `pmset -g assertions` no longer shows the Neverdie assertion.
+  - [ ] Given `isActive == true` and the assertion was released due to clamshell, when the lid opens, then the assertion is re-acquired automatically (user does not have to click the icon again).
+  - [ ] Given `isActive == true` and power source is AC, when the lid closes, then the assertion remains held and clamshell + external display keeps working as it did before this FR was added.
+  - [ ] Given `isActive == true` and the lid is closed on AC, when the power source switches from AC to battery, then the assertion is released.
+  - [ ] Given `isActive == true`, the assertion was released due to clamshell, and the lid is still closed, when the power source switches from battery to AC, then the assertion is re-acquired.
+  - [ ] Given `isActive == false`, when the lid state or the power source changes, then no assertion changes occur.
+  - [ ] While the assertion is suspended due to clamshell, `AppState.isActive` remains `true` and a substate (`isPausedDueToClamshell`) is observable so the UI/VoiceOver can differentiate "paused" from "OFF".
+- **Dependencies**: FR-005, FR-007, NFR-005
+
+#### FR-020: Auto-ON when Claude Code process detected
+- **Description**: When Neverdie mode is OFF and the process polling detects one or more running `claude` or `claude-code` processes, the app automatically switches to ON (creates IOPMAssertion, starts animation). This makes Neverdie fully hands-free -- the user does not need to manually toggle when starting Claude Code. The activation source is recorded as `.auto` to distinguish from manual activation.
+- **Priority**: Must
+- **Acceptance Criteria**:
+  - [ ] Given Neverdie mode is OFF and polling detects >= 1 `claude` or `claude-code` process, then Neverdie mode is set to ON with `activationSource = .auto`.
+  - [ ] The IOPMAssertion is created (per FR-005), subject to clamshell/power reconciliation (FR-019).
+  - [ ] The icon switches to the animated ON state (per FR-011).
+  - [ ] VoiceOver announces: "Neverdie ON -- Claude Code detected".
+  - [ ] Given auto-ON activates and subsequently all Claude processes terminate, then auto-OFF triggers (FR-014) without requiring `claudeProcessesEverDetected` to be set separately -- auto-ON implies processes were detected.
+- **Dependencies**: FR-013, FR-005, FR-011, FR-019
+
 ---
 
 ## Non-functional Requirements
@@ -292,7 +316,7 @@ macOS developers (macOS 14 Sonoma or later) who routinely use Claude Code CLI an
 
 ## Out of Scope
 
-- **Clamshell mode** (lid-closed) support -- PRD explicitly excludes this.
+- **Clamshell mode** (lid-closed keep-awake) support -- PRD explicitly excludes this. Neverdie does NOT attempt to keep the system awake while the lid is closed on battery power. Per FR-019, the app releases its sleep assertion on lid-close while on battery so that macOS can clamshell-sleep normally (battery correctness); this is a scoped compromise, not clamshell support. On AC power, the assertion is preserved and clamshell + external display works as a byproduct of standard macOS behavior, but no Neverdie-specific clamshell UX is promised.
 - **Windows / Linux** support -- macOS only.
 - **Non-Claude-Code process detection** -- the app only monitors `claude` processes.
 - **Direct Anthropic API calls** -- the app does NOT call the Anthropic API; it reads local data only.
@@ -319,7 +343,7 @@ macOS developers (macOS 14 Sonoma or later) who routinely use Claude Code CLI an
 
 7. **PRD lists both Homebrew Cask and App Store as distribution channels.** Assumed both are in scope for Phase 5 but not required for MVP functionality validation.
 
-8. **PRD does not specify behavior when the app is launched but macOS is on AC power vs. battery.** Assumed the app behaves identically regardless of power source.
+8. **PRD does not specify behavior when the app is launched but macOS is on AC power vs. battery.** Originally assumed identical behavior; this was revised with FR-019. On battery power, the sleep assertion is released when the lid closes so the system can clamshell-sleep and not drain the battery (NFR-005 correctness). On AC power, the assertion is held regardless of lid state, preserving the original behavior.
 
 ---
 
@@ -362,6 +386,8 @@ macOS developers (macOS 14 Sonoma or later) who routinely use Claude Code CLI an
 | US-007 | FR-003, FR-009 |
 | US-008 | FR-004 |
 | US-009 | FR-018 |
+| (none -- battery correctness) | FR-019 |
+| (none -- hands-free automation) | FR-020 |
 
 ---
 

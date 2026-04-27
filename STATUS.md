@@ -1,17 +1,17 @@
 # STATUS: Neverdie
 
-> Last updated: 2026-03-18
+> Last updated: 2026-04-27
 
 ## Current Milestone
 
-**All Issues Complete** -- All 23 issues across all 6 phases have been shipped. The project is feature-complete and ready for its first tagged release.
+**All Issues Complete** -- All 30 issues across 8 phases have been shipped.
 
 ## Issue Summary
 
 | Category | Count |
 |----------|-------|
-| Total issues | 23 |
-| Shipped | 23 (all issues) |
+| Total issues | 30 |
+| Shipped | 30 |
 | Remaining | 0 |
 
 ### Phase Progress
@@ -22,8 +22,11 @@
 | Phase 2: Personality | ISSUE-008 ~ 010 | COMPLETE |
 | Phase 3: Intelligence | ISSUE-011 ~ 012 | COMPLETE |
 | Phase 4: Monitoring | ISSUE-013 ~ 016 | COMPLETE |
-| Phase 4.5: Polish | ISSUE-017 ~ 019 | COMPLETE |
+| Phase 4.5: Polish | ISSUE-017 ~ 019, ISSUE-024 ~ 026 | COMPLETE |
 | Phase 5: Distribution | ISSUE-020 ~ 023 | COMPLETE |
+| Phase 6: Hands-Free | ISSUE-027 | COMPLETE |
+| Phase 7: Energy Optimization | ISSUE-028, ISSUE-029 | COMPLETE |
+| Phase 8: Bug Fixes | ISSUE-030 | COMPLETE |
 
 ## Distribution
 
@@ -52,9 +55,9 @@
 ## Generated Documents
 
 - [x] `docs/prd_digest.md` -- PRD summary
-- [x] `docs/requirements.md` -- 18 FRs, 8 NFRs, 9 User Stories
+- [x] `docs/requirements.md` -- 20 FRs, 8 NFRs, 9 User Stories
 - [x] `docs/ux_spec.md` -- 7 flows, 5 screens, copy guidelines, accessibility
 - [x] `docs/architecture.md` -- MVVM, 5 modules, zero dependencies
 - [x] `docs/data_model.md` -- In-memory entities, state machine, data flow
 - [x] `docs/test_plan.md` -- Risk-based prioritization, 50+ test cases
-- [x] `issues.md` -- 23 issues across 6 phases
+- [x] `issues.md` -- 30 issues across 8 phases

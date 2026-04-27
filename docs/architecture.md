@@ -16,20 +16,24 @@
 **Architecture pattern**: MVVM (Model-View-ViewModel). SwiftUI naturally encourages this. A single `@Observable` (or `@ObservableObject`) AppState acts as the central ViewModel, observed by SwiftUI views. Services are plain Swift classes injected into the AppState.
 
 ```
-┌─────────────────────────────────────────────────┐
-│                  NeverdieApp                     │
-│  (App entry point, MenuBarExtra)                │
-├─────────────────────────────────────────────────┤
-│              AppState (ViewModel)                │
-│  - isActive: Bool                               │
-│  - activationSource: .manual | .auto            │
-│  - processCount: Int                            │
-│  - tokenUsage: TokenUsage?                      │
-├──────────┬──────────┬───────────┬───────────────┤
-│ SleepMgr │ ProcMon  │ TokenMon  │ AnimationMgr  │
-│ (IOKit)  │ (sysctl) │ (file IO) │ (NSImage[])   │
-└──────────┴──────────┴───────────┴───────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                       NeverdieApp                            │
+│           (App entry point, MenuBarExtra)                    │
+├─────────────────────────────────────────────────────────────┤
+│                   AppState (ViewModel)                       │
+│  - isActive: Bool                                            │
+│  - isPausedDueToClamshell: Bool   (FR-019 substate)          │
+│  - activationSource: .manual | .auto                         │
+│  - processCount: Int                                         │
+│  - tokenUsage: TokenUsage?                                   │
+├────────┬────────┬────────┬────────┬─────────┬────────────────┤
+│ Sleep  │ Proc   │ Token  │ Anim   │ Clams   │ PowerSource    │
+│ Mgr    │ Mon    │ Mon    │ Mgr    │ Obs     │ Monitor        │
+│(IOKit) │(sysctl)│(fileIO)│(NSImg) │(IOKit)  │ (IOKit.ps)     │
+└────────┴────────┴────────┴────────┴─────────┴────────────────┘
 ```
+
+The `ClamshellObserver` and `PowerSourceMonitor` modules were added in ISSUE-024 to satisfy FR-019. Both are always-on observers (started at launch) that feed events into `AppState.reconcileAssertion()`, the single entry point that decides whether the `SleepManager` assertion should currently be held. `AppState.isActive` stays `true` throughout a clamshell-on-battery suspend; `isPausedDueToClamshell` differentiates "paused (waiting for lid-open or AC)" from a fully-OFF state.
 
 ---
 
@@ -42,6 +46,8 @@
 | Build system | Xcode 15+ / Swift Package Manager | Standard for macOS app development. SPM for any dependencies |
 | Min deployment | macOS 14.0 (Sonoma) | Per NFR-001 |
 | Sleep prevention | IOKit (IOPMAssertion C API) | The only correct API for this purpose. Bridged to Swift |
+| Lid state detection | IOKit `IOServiceAddInterestNotification` on `IOPMrootDomain` (`AppleClamshellState`) | FR-019: required to release the assertion on clamshell close while on battery. No polling; callback-driven via `IONotificationPortGetRunLoopSource` |
+| Power source detection | IOKit.ps (`IOPSNotificationCreateRunLoopSource`, `IOPSCopyPowerSourcesList`) | FR-019: required to distinguish AC vs battery and react to transitions in real time. Callback-driven, not polled |
 | Process detection | libproc / sysctl | proc_listpids() + proc_name() for lightweight process enumeration without spawning subprocesses |
 | Token data | FileManager + JSONDecoder | Local file parsing from ~/.claude/ directory |
 | Animation | NSImage array + Timer | Frame-based swap at 4-8fps. Minimal CPU overhead |
@@ -74,6 +80,7 @@
   @Observable
   final class AppState {
       private(set) var isActive: Bool = false          // Neverdie mode ON/OFF
+      private(set) var isPausedDueToClamshell: Bool = false  // FR-019 substate
       private(set) var activationSource: ActivationSource = .manual
       private(set) var processCount: Int = 0
       private(set) var tokenUsage: TokenUsage? = nil
@@ -83,6 +90,7 @@
       func startMonitoring()           // Begin process + token polling
       func stopMonitoring()            // Stop all polling
       func cleanup()                   // FR-008/FR-009: release assertion, stop timers
+      func reconcileAssertion()        // FR-019: central (isActive, lid, power) decision
   }
 
   enum ActivationSource { case manual, auto }
@@ -91,6 +99,16 @@
   - When `isActive == true` and `processCount > 0`, set `claudeProcessesEverDetected = true`.
   - When `isActive == true` and `claudeProcessesEverDetected == true` and `processCount == 0`, auto-deactivate.
   - When activation was manual and no Claude process was ever detected, do NOT auto-OFF.
+- **Assertion reconciliation (FR-019)**: `reconcileAssertion()` is the single point where the IOPMAssertion is acquired or released. Callers never touch `SleepManager` directly. The decision table it implements is:
+
+  | `isActive` | `isLidClosed` | `powerSource` | Assertion held? | `isPausedDueToClamshell` |
+  |------------|---------------|---------------|-----------------|-------------------------|
+  | false      | any           | any           | no              | false                   |
+  | true       | false         | any           | yes             | false                   |
+  | true       | true          | AC            | yes             | false                   |
+  | true       | true          | battery       | **no**          | **true**                |
+
+  Every event from `ClamshellObserver`, `PowerSourceMonitor`, `ProcessMonitor` (auto-OFF), or the user (`toggle()`) funnels through this function, so the decision table is the one-and-only source of truth.
 
 ### Module: SleepManager
 
@@ -109,13 +127,74 @@
 - **Failure mode**: If `IOPMAssertionCreateWithName` fails (returns non-success), `preventSleep()` returns `false`. AppState should reflect this -- mode stays OFF and logs an error. This is a non-recoverable error (likely a system issue).
 - **Cleanup guarantee (FR-008)**: `deinit` calls `allowSleep()`. Additionally, signal handlers (SIGTERM, SIGINT) invoke cleanup. Even if the process is force-killed, IOKit reclaims assertions automatically.
 
+### Module: ClamshellObserver
+
+- **Responsibility**: Observe MacBook lid open/close events and publish the current lid state. Added in ISSUE-024 for FR-019.
+- **Dependencies**: IOKit (no power-management lib; uses generic IOKit service interest).
+- **Key interfaces**:
+  ```swift
+  protocol ClamshellObserving: AnyObject {
+      var isLidClosed: Bool { get }
+      func start(onChange: @escaping (Bool) -> Void)
+      func stop()
+  }
+
+  final class ClamshellObserver: ClamshellObserving {
+      private(set) var isLidClosed: Bool = false
+      func start(onChange: @escaping (Bool) -> Void)
+      func stop()
+  }
+  ```
+- **Implementation strategy**:
+  1. `IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOPMrootDomain"))` to obtain the root power-management service.
+  2. `IOServiceAddInterestNotification` with `kIOGeneralInterest` registers a C callback that fires on every root-domain property change.
+  3. Inside the callback, read `kAppleClamshellStateKey` via `IORegistryEntryCreateCFProperty`. A `true` value means the lid is closed.
+  4. The notification port is added to the main run loop via `IONotificationPortGetRunLoopSource` so callbacks fire on the main thread.
+  5. `deinit` / `stop()` removes the run-loop source, releases the iterator, and calls `IONotificationPortDestroy` to avoid port leaks.
+- **Why not NSWorkspace.didWake / didSleep notifications**: Those fire on full system sleep/wake, which is exactly what Neverdie is preventing. Lid close on AC power does not trigger a wake notification at all. Root-domain interest notifications are the only reliable signal.
+- **Failure mode**: If the initial `IOServiceGetMatchingService` returns `IO_OBJECT_NULL`, `ClamshellObserver.start()` logs an error at `.error` and treats `isLidClosed` as `false` permanently. AppState falls back to AC-like behavior (assertion always held when `isActive == true`), which is the pre-ISSUE-024 behavior -- i.e., the app stays functional but loses the battery-correctness fix on that hardware.
+
+### Module: PowerSourceMonitor
+
+- **Responsibility**: Observe AC vs battery power transitions and publish the current power source. Added in ISSUE-024 for FR-019.
+- **Dependencies**: `IOKit.ps`.
+- **Key interfaces**:
+  ```swift
+  enum PowerSource { case ac, battery }
+
+  protocol PowerSourceMonitoring: AnyObject {
+      var currentSource: PowerSource { get }
+      func start(onChange: @escaping (PowerSource) -> Void)
+      func stop()
+  }
+
+  final class PowerSourceMonitor: PowerSourceMonitoring {
+      private(set) var currentSource: PowerSource = .ac
+      func start(onChange: @escaping (PowerSource) -> Void)
+      func stop()
+  }
+  ```
+- **Implementation strategy**:
+  1. On `start()`, read the initial value synchronously via `IOPSCopyPowerSourcesInfo` + `IOPSCopyPowerSourcesList`, inspecting `kIOPSPowerSourceStateKey` (`kIOPSACPowerValue` vs `kIOPSBatteryPowerValue`).
+  2. Register an `IOPSNotificationCreateRunLoopSource` callback and add it to the main run loop. On every callback, re-read the power source and fire `onChange` if it differs from the cached value.
+  3. `stop()` / `deinit` removes the run-loop source and releases the CF types.
+- **Initial value guarantee**: The synchronous read in `start()` means `AppState` is never in an unknown state -- `reconcileAssertion()` always has a real `(isLidClosed, powerSource)` pair to evaluate.
+- **Failure mode**: If `IOPSCopyPowerSourcesList` returns no sources (desktop Mac), default to `.ac`. Desktop Macs have no battery, so the battery-specific path is simply never entered -- behavior is identical to pre-ISSUE-024.
+- **Memory management**: `IOPSCopyPowerSourcesInfo` returns `Unmanaged<CFTypeRef>`; always `takeRetainedValue()` (and let ARC release). Leak regression here is invisible and will only surface in nightly leak checks.
+
 ### Module: ProcessMonitor
 
-- **Responsibility**: Periodically poll for running Claude Code processes. Report count.
+- **Responsibility**: Periodically poll for running Claude Code processes. Report count. Conforms to `ProcessMonitoring` protocol for dependency injection and testability.
 - **Dependencies**: None (libproc / Darwin APIs only).
 - **Key interfaces**:
   ```swift
-  final class ProcessMonitor {
+  protocol ProcessMonitoring: AnyObject {
+      func pollOnce() -> Int
+      func startPolling(onUpdate: @escaping (Int) -> Void)
+      func stopPolling()
+  }
+
+  final class ProcessMonitor: ProcessMonitoring {
       let pollInterval: TimeInterval = 30.0  // FR-013: default 30s
 
       func startPolling(onUpdate: @escaping (Int) -> Void)
@@ -263,12 +342,16 @@ Flow:   AppState.toggle()
 Output: UI updates via SwiftUI observation
 ```
 
-#### Process Poll Callback (FR-013, FR-014)
+#### Process Poll Callback (FR-013, FR-014, FR-020)
 ```
 Input:  Timer fires every 30 seconds
 Flow:   ProcessMonitor.pollOnce() -> count
         -> AppState updates processCount
-        -> If count == 0 and claudeProcessesEverDetected: AppState auto-deactivates
+        -> If !isActive and count > 0: AppState auto-activates (activationSource = .auto),
+           reconcileAssertion(), VoiceOver "Neverdie ON -- Claude Code detected"
+        -> If isActive and count > 0: set claudeProcessesEverDetected = true
+        -> If isActive and count == 0 and claudeProcessesEverDetected: AppState auto-deactivates,
+           reconcileAssertion(), VoiceOver "Neverdie OFF -- all sessions ended"
 Output: processCount published to UI
 ```
 
@@ -278,6 +361,20 @@ Input:  Popover opens (hover or click)
 Flow:   TokenMonitor.readUsage() -> TokenUsage?
         -> AppState updates tokenUsage
 Output: Popover renders bar graphs or "unavailable" message
+```
+
+#### Clamshell / Power-source reconciliation (FR-019)
+```
+Input:  ClamshellObserver onChange(isLidClosed) OR
+        PowerSourceMonitor onChange(powerSource) OR
+        AppState.toggle() OR
+        Auto-OFF triggered
+Flow:   AppState.reconcileAssertion()
+        -> reads (isActive, isLidClosed, powerSource)
+        -> consults decision table (see AppState module section)
+        -> calls SleepManager.preventSleep() or SleepManager.allowSleep()
+        -> updates isPausedDueToClamshell accordingly
+Output: IOPMAssertion state + isPausedDueToClamshell published to UI / VoiceOver
 ```
 
 #### Quit (FR-009)
@@ -456,6 +553,7 @@ jobs:
 | External dependencies | Zero (Apple frameworks only) | Sparkle (auto-update), TCA, etc. | Zero dependencies = zero supply chain risk, smaller binary, no version conflicts. Homebrew handles updates. App Store handles updates. Sparkle can be added later if direct-download becomes a primary channel |
 | Data persistence | None (in-memory + SMAppService) | UserDefaults for preferences | MVP has no user-configurable settings. Poll interval is hardcoded. Launch at Login is managed by the system. Adding UserDefaults later is trivial if preferences UI is added |
 | App Store sandbox | Separate build config for App Store | Single build for both channels | IOPMAssertion behavior inside sandbox needs verification. Keeping Homebrew Cask as unsandboxed ensures the core feature always works. App Store build is a stretch goal |
+| Clamshell + battery (FR-019) | Release assertion on lid-close while on battery, re-acquire on lid-open or AC reconnect | Keep the assertion forever (original MVP behavior) / Full clamshell keep-awake support | Keeping the assertion drains the battery to 0 with no way for the user to avoid it short of quitting, violating NFR-005. Full clamshell keep-awake is explicitly out of scope (PRD). The chosen compromise is a scoped correctness fix: we don't *support* lid-closed keep-awake, but we *respect* it so macOS can clamshell-sleep normally |
 
 ### What Changes at 10x Scale
 

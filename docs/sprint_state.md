@@ -1,33 +1,25 @@
 # Sprint State
 
 ## Meta
-- Started: 2026-04-13
+- Started: 2026-04-27
 - Iteration: 1 / 10
-- Parallel: 2
+- Parallel: 1
 - Status: completed
 
 ## Issue Progress
 | Issue | Status | Attempts | Last Error | Phase |
 |-------|--------|----------|------------|-------|
-| ISSUE-025 | shipped | 1 | -- | done |
-| ISSUE-026 | shipped | 1 | -- | done |
+| ISSUE-030 | shipped | 1 | -- | shipped |
 
 ## Phase Completion
-- ISSUE-025: StatusBarController reactive wiring for clamshell pause -- PR #49 merged
-- ISSUE-026: Rapid lid/power idempotency stress tests -- PR #50 merged
+- ISSUE-030 implement: SUCCESS (GH-Issue: #57, PR: #58, Branch: issue/ISSUE-030-fix-launch-at-login)
+- ISSUE-030 review: SUCCESS (1 fix applied: Logger privacy annotation)
+- ISSUE-030 ship: SUCCESS (PR #58 merged via squash, smoke test passed on main)
 
 ## Notes
-- Iteration 1: Both issues implemented, tested, reviewed, and merged in parallel.
-- ISSUE-025: Added withObservationTracking-based observation of isPausedDueToClamshell in StatusBarController. 4 new unit tests in StatusBarClamshellTests.swift.
-- ISSUE-026: Added 5 stress tests (50-100 cycle rapid lid/power transitions) to ClamshellBatteryTests.swift. No production code changes.
-- All 24 tests pass (4 scaffold + 11 clamshell + 5 stress + 4 statusbar clamshell).
-
-## Self-Review (Iteration 1 -- Final)
-- Checkpoint compliance: Build and test passed for both branches before merge
-- Batch limits: 2 issues processed in parallel (within MAX_PARALLEL=2)
-- State consistency: Both issues are now done/shipped, issues.md updated
-- Escalation check: No issues stuck
-- Confidence: High -- all tests pass, implementations match AC, PRs merged cleanly
+- ISSUE-030: Added LoginItemManaging protocol to Protocols.swift for testability. 12 new unit tests in LaunchAtLoginTests.swift. All 69 tests pass. Build succeeds.
+- ISSUE-030 review: F-001 (Medium) fixed: added `privacy: .public` to Logger interpolation.
+- ISSUE-030 ship: PR #58 squash-merged to main. Post-merge smoke test passed. Branch deleted.
 
 ## Discovered Issues
 (none)

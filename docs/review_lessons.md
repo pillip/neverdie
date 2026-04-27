@@ -35,3 +35,11 @@ Preventable patterns identified during code reviews. Each entry describes a patt
 - **Prevention**: During kickoff, draw the full state machine including transitions between manual and auto activation. Identify cross-source interactions and document whether they are intended or need guards.
 - **Frequency**: 1
 - **Observed-In**: ISSUE-027
+
+## [RL-005] @ObservationIgnored applied to computed properties (no-op)
+
+- **Category**: Code Quality
+- **Pattern**: When annotating an `@Observable` class with `@ObservationIgnored`, only stored properties need the attribute. Computed properties are not tracked by the `@Observable` macro and the attribute is silently ignored. Applying it to computed properties adds misleading noise that suggests the property would otherwise be tracked.
+- **Prevention**: During implementation, review which properties are stored vs computed before applying `@ObservationIgnored`. The macro only synthesizes observation for stored `var` properties.
+- **Frequency**: 1
+- **Observed-In**: ISSUE-029

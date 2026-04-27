@@ -166,6 +166,27 @@ Menu Bar Icon
 - **Error paths**:
   - **Force-quit via Activity Monitor**: IOKit reclaims assertions automatically when the process dies. No user action needed.
 
+### Flow 8: Auto-ON (Claude Code Process Detected)
+
+- **Trigger**: Process polling detects >= 1 `claude` or `claude-code` process while Neverdie mode is OFF.
+- **Precondition**: Neverdie mode is OFF. Process polling is running (always-on after app launch).
+- **Steps**:
+  1. Polling timer fires (every 30 seconds).
+  2. App scans for `claude` / `claude-code` processes -- finds one or more.
+  3. App sets `isActive = true`, `activationSource = .auto`, `claudeProcessesEverDetected = true`.
+  4. App calls `reconcileAssertion()` to create the IOPMAssertion (respecting clamshell/power state per FR-019).
+  5. Icon transitions from static sleeping zombie to animated "being shot" zombie.
+  6. VoiceOver announces: "Neverdie ON -- Claude Code detected".
+  7. Popover (if open) updates to show the process count.
+- **Success state**: Neverdie mode is ON. System sleep prevented (unless clamshell-on-battery). User did not need to click anything.
+- **Error paths**:
+  - **IOPMAssertion creation fails**: Same handling as Flow 1 error path -- icon remains OFF, status shows error.
+  - **Process detection fails**: Auto-ON does not trigger. Polling continues. User can still manually toggle ON.
+- **Edge cases**:
+  - Auto-ON triggers while lid is closed on battery: `isActive` becomes `true`, but assertion is NOT held (`isPausedDueToClamshell = true`). When lid opens or AC reconnects, assertion is acquired via `reconcileAssertion()`.
+  - User manually toggled OFF, then a Claude process is detected on the next poll: auto-ON fires (auto-ON always fires when OFF and processes are detected -- simplest behavior).
+  - Multiple Claude processes start between polls: a single auto-ON fires with the total count.
+
 ---
 
 ## Screen List
@@ -197,8 +218,9 @@ Menu Bar Icon
   | **Click (mouseDown)** | Standard press appearance. Animation pauses momentarily. Transitions to OFF on mouseUp. |
   | **Error (ON but assertion uncertain)** | Animation continues but with red dot overlay. Indicates the assertion may have been lost (e.g., system reclaimed it). |
   | **Auto-OFF transition** | Animation plays a "falling asleep" sequence (2-3 extra frames: zombie slows down, closes eyes, Z appears) before settling into OFF state. Duration: ~500ms. |
-- **Data dependencies**: App state (ON/OFF), animation frame timer, error flag.
-- **User actions**: Left-click (toggle OFF), right-click (dropdown menu), hover (popover).
+  | **Paused (lid closed on battery, FR-019)** | `isActive == true` but the assertion has been released due to clamshell-on-battery. The icon dims to ~50% opacity and shows the OFF (sleeping zombie) frame rather than the active animation, so at-a-glance it reads "not currently holding the assertion". The `isPausedDueToClamshell` substate is observable to AppState consumers. On lid-open or AC reconnect, the icon immediately returns to the animated ON state without the user clicking anything. |
+- **Data dependencies**: App state (ON/OFF), `isPausedDueToClamshell` substate, animation frame timer, error flag.
+- **User actions**: Left-click (toggle OFF -- also works while paused: clears both `isActive` and the paused substate), right-click (dropdown menu), hover (popover).
 
 ### Screen 3: Hover Popover
 
@@ -248,10 +270,11 @@ Menu Bar Icon
   |-------|-------------|
   | **Default (OFF)** | Status line reads "Neverdie: OFF". All items enabled. |
   | **Default (ON)** | Status line reads "Neverdie: ON". All items enabled. |
+  | **Paused (FR-019)** | Status line reads "Neverdie: Paused (lid closed on battery)". The app is still "active" (user intent preserved) but the assertion is currently released. All items still enabled -- selecting Quit is a clean shutdown; selecting "Launch at Login" works normally. |
   | **Error** | Status line reads "Neverdie: Error". All items still enabled (user can still quit or toggle login). |
   | **Launch at Login enabled** | Checkmark appears next to "Launch at Login". |
   | **Launch at Login disabled** | No checkmark next to "Launch at Login". |
-- **Data dependencies**: App state (ON/OFF/Error), Launch at Login registration status.
+- **Data dependencies**: App state (ON/OFF/Paused/Error), `isPausedDueToClamshell` substate, Launch at Login registration status.
 - **User actions**: Click "Launch at Login" to toggle, click "Quit Neverdie" to exit.
 
 ### Screen 5: Icon Transition Animations
@@ -282,6 +305,7 @@ Menu Bar Icon
 |---------|------|-------|
 | Status line (OFF) | "Neverdie: OFF" | Dropdown menu, disabled item |
 | Status line (ON) | "Neverdie: ON" | Dropdown menu, disabled item |
+| Status line (Paused, FR-019) | "Neverdie: Paused (lid closed on battery)" | Dropdown menu, disabled item. Shown when `isActive == true` and `isPausedDueToClamshell == true`. |
 | Status line (Error) | "Neverdie: Error" | Dropdown menu, disabled item |
 | Launch at Login | "Launch at Login" | Standard macOS phrasing |
 | Quit | "Quit Neverdie" | Standard macOS phrasing, matches "Quit [AppName]" convention |
@@ -315,10 +339,15 @@ Menu Bar Icon
 
 | Event | VoiceOver reads | Implementation |
 |-------|----------------|----------------|
-| Icon gains focus | "Neverdie -- sleep prevention [ON/OFF]" | `accessibilityLabel` on status item button |
+| Icon gains focus (OFF) | "Neverdie -- sleep prevention OFF" | `accessibilityLabel` on status item button |
+| Icon gains focus (ON) | "Neverdie -- sleep prevention ON" | `accessibilityLabel` on status item button |
+| Icon gains focus (Paused, FR-019) | "Neverdie -- paused, waiting for lid open or AC power" | `accessibilityLabel` updated whenever `isPausedDueToClamshell` toggles. MUST NOT read as "ON" or "OFF" while paused. |
 | Toggle to ON | "Neverdie ON" | Post `NSAccessibility.Notification.announcementRequested` |
 | Toggle to OFF | "Neverdie OFF" | Post `NSAccessibility.Notification.announcementRequested` |
+| Enter paused (FR-019) | "Neverdie paused -- lid closed on battery" | Post announcement notification when `isPausedDueToClamshell` transitions from false -> true |
+| Exit paused (FR-019) | "Neverdie resumed" | Post announcement notification when `isPausedDueToClamshell` transitions from true -> false while `isActive` stays true |
 | Auto-OFF | "Neverdie OFF -- all sessions ended" | Post announcement notification |
+| Auto-ON | "Neverdie ON -- Claude Code detected" | Post announcement notification |
 | Error | "Neverdie error -- could not prevent sleep" | Post announcement notification |
 | Popover opens | "Popover: N active sessions. Token usage: Context [value], Input [value], Output [value]" | `accessibilityLabel` on popover content view |
 | Dropdown menu opens | Standard macOS menu VoiceOver behavior | Native `NSMenu` accessibility |
