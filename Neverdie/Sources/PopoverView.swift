@@ -51,6 +51,24 @@ func performLoginItemToggle(manager: LoginItemManaging) -> LoginItemToggleResult
     }
 }
 
+// MARK: - Login Item Alert
+
+/// Build the NSAlert for a login item toggle failure. Extracted for testability.
+/// The caller is responsible for calling `runModal()`.
+func makeLoginItemAlert(wasEnabling: Bool, error: Error) -> NSAlert {
+    let alert = NSAlert()
+    alert.messageText = NSLocalizedString(
+        wasEnabling
+            ? "Could not enable Launch at Login"
+            : "Could not disable Launch at Login",
+        comment: "Alert title when SMAppService registration fails"
+    )
+    alert.informativeText = error.localizedDescription
+    alert.alertStyle = .warning
+    alert.addButton(withTitle: NSLocalizedString("OK", comment: "Alert dismiss button"))
+    return alert
+}
+
 /// SwiftUI view displayed inside the status bar popover.
 ///
 /// Apple-style minimal design with toggle, launch at login, and quit.
@@ -61,7 +79,10 @@ struct ControlPopoverView: View {
     let onToggle: () -> Void
     let onQuit: () -> Void
     var loginItemManager: LoginItemManaging = SystemLoginItemManager()
-    var onLoginItemError: ((Error) -> Void)?
+    var onLoginItemError: ((Bool, Error) -> Void)?
+
+    /// Test hook: called with the synced value when `.onAppear` fires.
+    var _testOnSyncLaunchAtLogin: ((Bool) -> Void)?
 
     @State private var launchAtLogin: Bool = false
     @State private var hoveredRow: String?
@@ -99,7 +120,9 @@ struct ControlPopoverView: View {
         }
         .frame(width: 220)
         .onAppear {
-            launchAtLogin = loginItemManager.status == .enabled
+            let synced = loginItemManager.status == .enabled
+            launchAtLogin = synced
+            _testOnSyncLaunchAtLogin?(synced)
         }
     }
 
@@ -140,19 +163,9 @@ struct ControlPopoverView: View {
         case .failed(let wasEnabling, let error):
             Logger.lifecycle.error("SMAppService failed: \(error.localizedDescription, privacy: .public)")
             if let handler = onLoginItemError {
-                handler(error)
+                handler(wasEnabling, error)
             } else {
-                let alert = NSAlert()
-                alert.messageText = NSLocalizedString(
-                    wasEnabling
-                        ? "Could not enable Launch at Login"
-                        : "Could not disable Launch at Login",
-                    comment: "Alert title when SMAppService registration fails"
-                )
-                alert.informativeText = error.localizedDescription
-                alert.alertStyle = .warning
-                alert.addButton(withTitle: NSLocalizedString("OK", comment: "Alert dismiss button"))
-                alert.runModal()
+                makeLoginItemAlert(wasEnabling: wasEnabling, error: error).runModal()
             }
         }
     }
